@@ -1032,7 +1032,6 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	uint_t count = ztip->zti_count;
 	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
 	uint_t cpus, flags = TASKQ_DYNAMIC;
-	boolean_t batch = B_FALSE;
 
 	switch (mode) {
 	case ZTI_MODE_FIXED:
