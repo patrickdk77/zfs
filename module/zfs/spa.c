@@ -99,6 +99,7 @@
 
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
+#include <cityhash.h>
 
 /*
  * The interval, in seconds, at which failed configuration cache file writes
@@ -108,16 +109,16 @@ int zfs_ccw_retry_interval = 300;
 
 typedef enum zti_modes {
 	ZTI_MODE_FIXED,			/* value is # of threads (min 1) */
-	ZTI_MODE_BATCH,			/* cpu-intensive; value is ignored */
 	ZTI_MODE_SCALE,			/* Taskqs scale with CPUs. */
+	ZTI_MODE_SYNC,			/* sync thread assigned */
 	ZTI_MODE_NULL,			/* don't create a taskq */
 	ZTI_NMODES
 } zti_modes_t;
 
 #define	ZTI_P(n, q)	{ ZTI_MODE_FIXED, (n), (q) }
 #define	ZTI_PCT(n)	{ ZTI_MODE_ONLINE_PERCENT, (n), 1 }
-#define	ZTI_BATCH	{ ZTI_MODE_BATCH, 0, 1 }
 #define	ZTI_SCALE	{ ZTI_MODE_SCALE, 0, 1 }
+#define	ZTI_SYNC	{ ZTI_MODE_SYNC, 0, 1 }
 #define	ZTI_NULL	{ ZTI_MODE_NULL, 0, 0 }
 
 #define	ZTI_N(n)	ZTI_P(n, 1)
@@ -138,14 +139,14 @@ static const char *const zio_taskq_types[ZIO_TASKQ_TYPES] = {
  * initializing a pool, we use this table to create an appropriately sized
  * taskq. Some operations are low volume and therefore have a small, static
  * number of threads assigned to their taskqs using the ZTI_N(#) or ZTI_ONE
- * macros. Other operations process a large amount of data; the ZTI_BATCH
+ * macros. Other operations process a large amount of data; the ZTI_SCALE
  * macro causes us to create a taskq oriented for throughput. Some operations
  * are so high frequency and short-lived that the taskq itself can become a
  * point of lock contention. The ZTI_P(#, #) macro indicates that we need an
  * additional degree of parallelism specified by the number of threads per-
  * taskq and the number of taskqs; when dispatching an event in this case, the
- * particular taskq is chosen at random. ZTI_SCALE is similar to ZTI_BATCH,
- * but with number of taskqs also scaling with number of CPUs.
+ * particular taskq is chosen at random. ZTI_SCALE uses a number of taskqs
+ * that scales with the number of CPUs.
  *
  * The different taskq priorities are to handle the different contexts (issue
  * and interrupt) and then to reserve threads for ZIO_PRIORITY_NOW I/Os that
@@ -155,7 +156,7 @@ static zio_taskq_info_t zio_taskqs[ZIO_TYPES][ZIO_TASKQ_TYPES] = {
 	/* ISSUE	ISSUE_HIGH	INTR		INTR_HIGH */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* NULL */
 	{ ZTI_N(8),	ZTI_NULL,	ZTI_SCALE,	ZTI_NULL }, /* READ */
-	{ ZTI_BATCH,	ZTI_N(5),	ZTI_SCALE,	ZTI_N(5) }, /* WRITE */
+	{ ZTI_SYNC,	ZTI_N(5),	ZTI_SCALE,	ZTI_N(5) }, /* WRITE */
 	{ ZTI_SCALE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* FREE */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* CLAIM */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* IOCTL */
@@ -186,6 +187,8 @@ static const boolean_t spa_create_process = B_TRUE; /* no process => no sysdc */
  * This is used by zdb to analyze non-idle pools.
  */
 boolean_t	spa_load_verify_dryrun = B_FALSE;
+
+static uint_t	zio_taskq_wr_iss_ncpus = 0;
 
 /*
  * Allow read spacemaps in case of readonly import (spa_mode == SPA_MODE_READ).
@@ -1036,10 +1039,28 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 		ASSERT3U(value, >, 0);
 		break;
 
-	case ZTI_MODE_BATCH:
-		batch = B_TRUE;
+	case ZTI_MODE_SYNC:
+
+		/*
+		 * Create one wr_iss taskq for every 'zio_taskq_wr_iss_ncpus',
+		 * not to exceed the number of spa allocators.
+		 */
+		if (zio_taskq_wr_iss_ncpus == 0) {
+			count = MAX(boot_ncpus / spa->spa_alloc_count, 1);
+		} else {
+			count = MAX(1,
+			    boot_ncpus / MAX(1, zio_taskq_wr_iss_ncpus));
+		}
+		count = MAX(count, (zio_taskq_batch_pct + 99) / 100);
+		count = MIN(count, spa->spa_alloc_count);
+
+		/*
+		 * zio_taskq_batch_pct is unbounded and may exceed 100%, but no
+		 * single taskq may have more threads than 100% of online cpus.
+		 */
+		value = (zio_taskq_batch_pct + count / 2) / count;
+		value = MIN(value, 100);
 		flags |= TASKQ_THREADS_CPU_PCT;
-		value = MIN(zio_taskq_batch_pct, 100);
 		break;
 
 	case ZTI_MODE_SCALE:
@@ -1086,7 +1107,7 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 
 	default:
 		panic("unrecognized mode for %s_%s taskq (%u:%u) in "
-		    "spa_activate()",
+		    "spa_taskqs_init()",
 		    zio_type_name[t], zio_taskq_types[q], mode, value);
 		break;
 	}
@@ -1107,9 +1128,6 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 			    zio_type_name[t], zio_taskq_types[q]);
 
 		if (zio_taskq_sysdc && spa->spa_proc != &p0) {
-			if (batch)
-				flags |= TASKQ_DC_BATCH;
-
 			(void) zio_taskq_basedc;
 			tq = taskq_create_sysdc(name, value, 50, INT_MAX,
 			    spa->spa_proc, zio_taskq_basedc, flags);
@@ -1289,8 +1307,8 @@ spa_taskq_param_set(zio_type_t t, char *cfg)
 			break;
 		}
 
-		case ZTI_MODE_BATCH: {
-			const zio_taskq_info_t zti = ZTI_BATCH;
+		case ZTI_MODE_SYNC: {
+			const zio_taskq_info_t zti = ZTI_SYNC;
 			row[q] = zti;
 			break;
 		}
@@ -1436,12 +1454,11 @@ spa_taskq_write_param(ZFS_MODULE_PARAM_ARGS)
 /*
  * Dispatch a task to the appropriate taskq for the ZFS I/O type and priority.
  * Note that a type may have multiple discrete taskqs to avoid lock contention
- * on the taskq itself. In that case we choose which taskq at random by using
- * the low bits of gethrtime().
+ * on the taskq itself.
  */
-void
-spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
-    task_func_t *func, void *arg, uint_t flags, taskq_ent_t *ent)
+static taskq_t *
+spa_taskq_dispatch_select(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
+    zio_t *zio)
 {
 	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
 	taskq_t *tq;
@@ -1449,12 +1466,27 @@ spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
 	ASSERT3P(tqs->stqs_taskq, !=, NULL);
 	ASSERT3U(tqs->stqs_count, !=, 0);
 
+	if ((t == ZIO_TYPE_WRITE) && (q == ZIO_TASKQ_ISSUE) &&
+	    (zio != NULL) && (zio->io_wr_iss_tq != NULL)) {
+		/* dispatch to assigned write issue taskq */
+		tq = zio->io_wr_iss_tq;
+		return (tq);
+	}
+
 	if (tqs->stqs_count == 1) {
 		tq = tqs->stqs_taskq[0];
 	} else {
 		tq = tqs->stqs_taskq[((uint64_t)gethrtime()) % tqs->stqs_count];
 	}
+	return (tq);
+}
 
+void
+spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
+    task_func_t *func, void *arg, uint_t flags, taskq_ent_t *ent,
+    zio_t *zio)
+{
+	taskq_t *tq = spa_taskq_dispatch_select(spa, t, q, zio);
 	taskq_dispatch_ent(tq, func, arg, flags, ent);
 }
 
@@ -1465,20 +1497,8 @@ void
 spa_taskq_dispatch_sync(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
     task_func_t *func, void *arg, uint_t flags)
 {
-	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
-	taskq_t *tq;
-	taskqid_t id;
-
-	ASSERT3P(tqs->stqs_taskq, !=, NULL);
-	ASSERT3U(tqs->stqs_count, !=, 0);
-
-	if (tqs->stqs_count == 1) {
-		tq = tqs->stqs_taskq[0];
-	} else {
-		tq = tqs->stqs_taskq[((uint64_t)gethrtime()) % tqs->stqs_count];
-	}
-
-	id = taskq_dispatch(tq, func, arg, flags);
+	taskq_t *tq = spa_taskq_dispatch_select(spa, t, q, NULL);
+	taskqid_t id = taskq_dispatch(tq, func, arg, flags);
 	if (id)
 		taskq_wait_id(tq, id);
 }
@@ -9887,6 +9907,104 @@ spa_sync_allpools(void)
 	mutex_exit(&spa_namespace_lock);
 }
 
+taskq_t *
+spa_sync_tq_create(spa_t *spa, const char *name)
+{
+	kthread_t **kthreads;
+
+	ASSERT(spa->spa_sync_tq == NULL);
+	ASSERT3S(spa->spa_alloc_count, <=, boot_ncpus);
+
+	/*
+	 * - do not allow more allocators than cpus.
+	 * - there may be more cpus than allocators.
+	 * - do not allow more sync taskq threads than allocators or cpus.
+	 */
+	int nthreads = spa->spa_alloc_count;
+	spa->spa_syncthreads = kmem_zalloc(sizeof (spa_syncthread_info_t) *
+	    nthreads, KM_SLEEP);
+
+	spa->spa_sync_tq = taskq_create_synced(name, nthreads, minclsyspri,
+	    nthreads, INT_MAX, TASKQ_PREPOPULATE, &kthreads);
+	VERIFY(spa->spa_sync_tq != NULL);
+	VERIFY(kthreads != NULL);
+
+	spa_taskqs_t *tqs =
+	    &spa->spa_zio_taskq[ZIO_TYPE_WRITE][ZIO_TASKQ_ISSUE];
+
+	spa_syncthread_info_t *ti = spa->spa_syncthreads;
+	for (int i = 0, w = 0; i < nthreads; i++, w++, ti++) {
+		ti->sti_thread = kthreads[i];
+		if (w == tqs->stqs_count) {
+			w = 0;
+		}
+		ti->sti_wr_iss_tq = tqs->stqs_taskq[w];
+	}
+
+	kmem_free(kthreads, sizeof (*kthreads) * nthreads);
+	return (spa->spa_sync_tq);
+}
+
+void
+spa_sync_tq_destroy(spa_t *spa)
+{
+	ASSERT(spa->spa_sync_tq != NULL);
+
+	taskq_wait(spa->spa_sync_tq);
+	taskq_destroy(spa->spa_sync_tq);
+	kmem_free(spa->spa_syncthreads,
+	    sizeof (spa_syncthread_info_t) * spa->spa_alloc_count);
+	spa->spa_sync_tq = NULL;
+}
+
+void
+spa_select_allocator(zio_t *zio)
+{
+	zbookmark_phys_t *bm = &zio->io_bookmark;
+	spa_t *spa = zio->io_spa;
+
+	ASSERT(zio->io_type == ZIO_TYPE_WRITE);
+
+	/*
+	 * A gang block (for example) may have inherited its parent's
+	 * allocator, in which case there is nothing further to do here.
+	 */
+	if (ZIO_HAS_ALLOCATOR(zio))
+		return;
+
+	ASSERT(spa != NULL);
+	ASSERT(bm != NULL);
+
+	/*
+	 * First try to use an allocator assigned to the syncthread, and set
+	 * the corresponding write issue taskq for the allocator.
+	 * Note, we must have an open pool to do this.
+	 */
+	if (spa->spa_sync_tq != NULL) {
+		spa_syncthread_info_t *ti = spa->spa_syncthreads;
+		for (int i = 0; i < spa->spa_alloc_count; i++, ti++) {
+			if (ti->sti_thread == curthread) {
+				zio->io_allocator = i;
+				zio->io_wr_iss_tq = ti->sti_wr_iss_tq;
+				return;
+			}
+		}
+	}
+
+	/*
+	 * We want to try to use as many allocators as possible to help improve
+	 * performance, but we also want logically adjacent IOs to be physically
+	 * adjacent to improve sequential read performance. We chunk each object
+	 * into 2^20 block regions, and then hash based on the objset, object,
+	 * level, and region to accomplish both of these goals.
+	 */
+	uint64_t hv = cityhash4(bm->zb_objset, bm->zb_object, bm->zb_level,
+	    bm->zb_blkid >> 20);
+
+	zio->io_allocator = (uint_t)hv % spa->spa_alloc_count;
+	zio->io_wr_iss_tq = NULL;
+}
+
 /*
  * ==========================================================================
  * Miscellaneous routines
@@ -10489,3 +10607,6 @@ ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_write,
 	"Configure IO queues for write IO");
 #endif
 /* END CSTYLED */
+
+ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_wr_iss_ncpus, UINT, ZMOD_RW,
+	"Number of CPUs to run write issue taskqs");
