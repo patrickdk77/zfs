@@ -1,0 +1,86 @@
+name: zfs-qemu-xfstests
+
+# xfstests (fstests) variant of zfs-qemu. Identical setup/build pipeline
+# (qemu-1..5), but the "Run tests" step runs the reflink/dedupe/fiemap groups
+# across a ZFS pool-topology matrix instead of ZTS, and diffs the result
+# against per-topology baselines (see .github/workflows/scripts/xfstests/).
+#
+# Default OS matrix is just two: almalinux8 (kernel 4.18 -> the
+# fiemap_check_flags compat path) and ubuntu24 (recent -> the fiemap_prep
+# path). Unlike ZTS, xfstests validates FS semantics that don't vary across
+# the rest of the distro matrix; those two cover both kernel-compat branches.
+# Override with the `os` input.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      os:
+        type: string
+        required: false
+        default: '["almalinux8", "ubuntu24"]'
+        description: 'JSON array of OSes to run (e.g. ["almalinux8","ubuntu24"])'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  qemu-vm:
+    name: qemu-xfstests
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(github.event.inputs.os || '["almalinux8", "ubuntu24"]') }}
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+
+    # --- identical to zfs-qemu: host setup, boot, deps, build, test VMs ---
+    - name: Setup QEMU
+      timeout-minutes: 60
+      run: .github/workflows/scripts/qemu-1-setup.sh
+
+    - name: Start build machine
+      timeout-minutes: 10
+      run: .github/workflows/scripts/qemu-2-start.sh ${{ matrix.os }}
+
+    - name: Install dependencies
+      timeout-minutes: 60
+      run: .github/workflows/scripts/qemu-3-deps.sh --poweroff ${{ matrix.os }}
+
+    - name: Build modules
+      timeout-minutes: 30
+      run: .github/workflows/scripts/qemu-4-build.sh --poweroff --enable-debug ${{ matrix.os }}
+
+    - name: Setup testing machines
+      timeout-minutes: 5
+      run: .github/workflows/scripts/qemu-5-setup.sh
+
+    # --- the only real change: run fstests instead of ZTS ---
+    - name: Run xfstests
+      timeout-minutes: 270
+      run: .github/workflows/scripts/xfstests/qemu-6-xfstests.sh ${{ matrix.os }}
+
+    - name: Prepare artifacts
+      if: always()
+      timeout-minutes: 10
+      run: .github/workflows/scripts/qemu-7-prepare.sh
+
+    - uses: actions/upload-artifact@v7
+      id: artifact-upload
+      if: always()
+      with:
+        name: Logs-xfstests-${{ matrix.os }}
+        path: /tmp/qemu-${{ matrix.os }}.tar.bz2
+        archive: false
+        if-no-files-found: ignore
+
+    # qemu-8-summary.sh prints /tmp/summary.txt, which qemu-6-xfstests.sh wrote
+    # from xfstests-report.sh (per-topology PASS / new-FAIL / known-FAIL / skip).
+    - name: Test Summary
+      if: always()
+      run: .github/workflows/scripts/qemu-8-summary.sh '${{ steps.artifact-upload.outputs.artifact-url }}'

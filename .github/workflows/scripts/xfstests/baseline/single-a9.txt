@@ -1,0 +1,9 @@
+# xfstests known-failures baseline: single-a9
+# generated 2026-07-23 from a fiemap+dedupe sweep on fiemap-support.
+# category: zfs-semantics | fideduperange-uncommitted | investigate | upstream-bug
+#
+generic/092  # investigate: consistent fiemap failure (likely zfs-semantics; confirm)
+generic/094  # investigate: consistent fiemap failure (likely zfs-semantics; confirm)
+generic/301  # investigate: consistent fiemap failure (likely zfs-semantics; confirm)
+generic/473  # investigate: consistent fiemap failure (likely zfs-semantics; confirm)
+generic/679  # zfs-semantics: no fallocate preallocation (unwritten extents)

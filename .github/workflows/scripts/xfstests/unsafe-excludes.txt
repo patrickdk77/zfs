@@ -1,0 +1,7 @@
+# Tests that crash or hang the kernel and would abort the whole run.
+# These are excluded with -E for safety and reported as SKIPPED in results;
+# they are NOT part of the pass/fail accounting.
+#
+# format: <test>  # reason
+#
+generic/733  # upstream master BRT double-free panic ("segment already in tree") during the reflink/dm-delay stress; not a ZFS-feature gap. See ~/zfs-733-bug/ISSUE.md.
