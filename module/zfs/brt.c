@@ -1264,17 +1264,62 @@ brt_pending_remove(spa_t *spa, const blkptr_t *bp, dmu_tx_t *tx)
 		kmem_cache_free(brt_entry_cache, bre);
 }
 
+/*
+ * Return TRUE if a clone reference to this block was created in a
+ * TXG that has not been synced yet.
+ *
+ * brt_maybe_exists() and brt_entry_get_refcount() see only the
+ * references that have reached bv_entcount, bv_tree or the ZAP, and
+ * brt_pending_apply() puts them there in syncing context.  A caller
+ * in open context asking whether a block is shared has to look at
+ * the pending trees as well: the clone has already returned success,
+ * so the block is referenced twice even though nothing on disk says
+ * so yet.
+ */
+boolean_t
+brt_pending_exists(spa_t *spa, const blkptr_t *bp)
+{
+	brt_entry_t bre_search;
+	boolean_t found = B_FALSE;
+
+	if (spa->spa_brt_nvdevs == 0)
+		return (B_FALSE);
+
+	uint64_t vdevid = DVA_GET_VDEV(&bp->blk_dva[0]);
+	brt_vdev_t *brtvd = brt_vdev(spa, vdevid, B_FALSE);
+	if (brtvd == NULL)
+		return (B_FALSE);
+
+	bre_search.bre_bp = *bp;
+
+	mutex_enter(&brtvd->bv_pending_lock);
+	for (int i = 0; i < TXG_SIZE; i++) {
+		if (avl_find(&brtvd->bv_pending_tree[i], &bre_search,
+		    NULL) != NULL) {
+			found = B_TRUE;
+			break;
+		}
+	}
+	mutex_exit(&brtvd->bv_pending_lock);
+
+	return (found);
+}
+
 static void
 brt_pending_apply_vdev(spa_t *spa, brt_vdev_t *brtvd, uint64_t txg)
 {
 	brt_entry_t *bre, *nbre;
 
 	/*
-	 * We are in syncing context, so no other bv_pending_tree accesses
-	 * are possible for the TXG.  So we don't need bv_pending_lock.
+	 * No other bv_pending_tree accesses are possible for this
+	 * TXG, but brt_pending_exists() scans every TXG's tree from
+	 * open context, so the swap itself still has to be
+	 * serialized.
 	 */
 	ASSERT(avl_is_empty(&brtvd->bv_tree));
+	mutex_enter(&brtvd->bv_pending_lock);
 	avl_swap(&brtvd->bv_tree, &brtvd->bv_pending_tree[txg & TXG_MASK]);
+	mutex_exit(&brtvd->bv_pending_lock);
 
 	for (bre = avl_first(&brtvd->bv_tree); bre; bre = nbre) {
 		nbre = AVL_NEXT(&brtvd->bv_tree, bre);

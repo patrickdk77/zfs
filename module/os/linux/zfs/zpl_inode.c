@@ -37,6 +37,8 @@
 #include <sys/vfs.h>
 #include <sys/zpl.h>
 #include <sys/file.h>
+#include <sys/fiemap.h>
+#include <linux/fiemap.h>
 
 static struct dentry *
 zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
@@ -757,10 +759,77 @@ zpl_get_acl(struct inode *ip, int type)
 
 #endif
 
+/*
+ * Report the file's logical-to-physical extent mapping via the FIEMAP ioctl.
+ *
+ * Valid FIEMAP flags:
+ *   FIEMAP_FLAG_SYNC    - Sync extents before reporting (generic)
+ *   FIEMAP_FLAG_COPIES  - Report all data copies (ZFS-only)
+ *   FIEMAP_FLAG_NOMERGE - Never merge blocks into extents (ZFS-only)
+ *   FIEMAP_FLAG_HOLES   - Report holes as unwritten extents (ZFS-only)
+ */
+static int
+zpl_fiemap(struct inode *ip, struct fiemap_extent_info *fei,
+    u64 start, u64 len)
+{
+	zfs_fiemap_t *fm;
+	unsigned int flags = fei->fi_flags;
+	fstrans_cookie_t cookie;
+	int error;
+
+	/* Mask ZFS-only flags out of the generic compatibility check. */
+	fei->fi_flags &= ~ZFS_FIEMAP_FLAGS_ZFS;
+
+#ifdef HAVE_FIEMAP_PREP
+	error = fiemap_prep(ip, fei, start, &len, ZFS_FIEMAP_FLAGS_COMPAT);
+#else
+	/*
+	 * Linux < 5.8 has no fiemap_prep(); validate the flags with
+	 * fiemap_check_flags() and clamp the length ourselves.
+	 * fiemap_prep() clamps to sb->s_maxbytes; clamping to the inode
+	 * size is stricter, and enough for what we report, since there
+	 * are no extents past EOF to describe.
+	 */
+	error = fiemap_check_flags(fei, ZFS_FIEMAP_FLAGS_COMPAT);
+	if (error == 0 && len == 0) {
+		/*
+		 * fiemap_prep() rejects a zero length, and
+		 * zfs_fiemap_assemble() reads one as "to the end of
+		 * the file", so without this a request that 5.8 and
+		 * later refuse would map the whole file here.
+		 */
+		error = -EINVAL;
+	}
+	if (error == 0) {
+		loff_t fsize = i_size_read(ip);
+		if (start >= (u64)fsize)
+			len = 0;
+		else if (len > (u64)fsize - start)
+			len = (u64)fsize - start;
+	}
+#endif
+	if (error)
+		return (error);
+
+	fm = zfs_fiemap_create(start, len, flags, fei->fi_extents_max);
+
+	cookie = spl_fstrans_mark();
+	error = -zfs_fiemap_assemble(ip, fm);
+	spl_fstrans_unmark(cookie);
+
+	if (error == 0)
+		error = -zfs_fiemap_fill(fm, fei, start, len);
+
+	zfs_fiemap_destroy(fm);
+
+	return (error);
+}
+
 const struct inode_operations zpl_inode_operations = {
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
 	.listxattr	= zpl_xattr_list,
+	.fiemap		= zpl_fiemap,
 #if defined(CONFIG_FS_POSIX_ACL)
 	.set_acl	= zpl_set_acl,
 #if defined(HAVE_GET_INODE_ACL)

@@ -1,0 +1,88 @@
+#!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2026 by the OpenZFS project.  All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# Helpers for parsing the output of the `fiemap` command, which prints one
+# line per extent:
+#     ext <logical> <physical> <length> <flags_hex> [flag names...]
+# followed by:
+#     mapped <count>
+# or, on failure:
+#     error <errno> <strerror>
+#
+
+# Number of extent lines actually returned.
+function fiemap_nr_extents
+{
+	fiemap "$@" | grep -c '^ext '
+}
+
+# The value from the trailing "mapped N" summary line.
+function fiemap_mapped
+{
+	fiemap "$@" | awk '/^mapped /{print $2}'
+}
+
+# errno from a failed call (empty on success).
+function fiemap_errno
+{
+	fiemap "$@" | awk '/^error /{print $2}'
+}
+
+# True if at least one extent carries the named flag word (e.g. shared,
+# encoded, encrypted, inline, unwritten, last, merged).
+function fiemap_has_flag
+{
+	typeset flag=$1
+	shift
+	fiemap "$@" | grep '^ext ' | grep -qw "$flag"
+}
+
+# True only if *every* extent carries the named flag word.
+function fiemap_all_flag
+{
+	typeset flag=$1
+	shift
+	typeset total=$(fiemap "$@" | grep -c '^ext ')
+	typeset have=$(fiemap "$@" | grep '^ext ' | grep -cw "$flag")
+	[[ "$total" -gt 0 && "$total" -eq "$have" ]]
+}
+
+# Space-separated list of physical offsets, in extent order.  Used to prove
+# two files share (clone) or do not share (independent) the same blocks.
+function fiemap_physical
+{
+	echo $(fiemap "$@" | awk '/^ext /{print $3}')
+}
+
+# Sum of the logical lengths of all reported extents.
+function fiemap_logical_sum
+{
+	fiemap "$@" | awk '/^ext /{s += $4} END {print s+0}'
+}

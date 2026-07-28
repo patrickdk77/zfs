@@ -96,6 +96,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/bclone/bclone_common.kshlib \
 	functional/bclone/bclone_corner_cases.kshlib \
 	functional/block_cloning/block_cloning.kshlib \
+	functional/fiemap/fiemap.kshlib \
 	functional/cache/cache.cfg \
 	functional/cache/cache.kshlib \
 	functional/cachefile/cachefile.cfg \
@@ -1665,6 +1666,24 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/fallocate/fallocate_prealloc.ksh \
 	functional/fallocate/fallocate_punch-hole.ksh \
 	functional/fallocate/fallocate_zero-range.ksh \
+	functional/fiemap/cleanup.ksh \
+	functional/fiemap/setup.ksh \
+	functional/fiemap/fiemap_sanity.ksh \
+	functional/fiemap/fiemap_holes.ksh \
+	functional/fiemap/fiemap_holes_indirect.ksh \
+	functional/fiemap/fiemap_removal.ksh \
+	functional/fiemap/fiemap_concurrent.ksh \
+	functional/fiemap/fiemap_shared.ksh \
+	functional/fiemap/fiemap_clone_pending.ksh \
+	functional/fiemap/fiemap_compress.ksh \
+	functional/fiemap/fiemap_encrypt.ksh \
+	functional/fiemap/fiemap_copies.ksh \
+	functional/fiemap/fiemap_nomerge.ksh \
+	functional/fiemap/fiemap_count.ksh \
+	functional/fiemap/fiemap_count_exact.ksh \
+	functional/fiemap/fiemap_range.ksh \
+	functional/fiemap/fiemap_errors.ksh \
+	functional/fiemap/fiemap_stress.ksh \
 	functional/fallocate/setup.ksh \
 	functional/fault/auto_offline_001_pos.ksh \
 	functional/fault/auto_online_001_pos.ksh \
