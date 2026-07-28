@@ -517,7 +517,14 @@ zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 	ret = zfs_putpage(pp->mapping->host, pp, wbc, *for_sync);
 	spl_fstrans_unmark(cookie);
 
-	return (ret);
+	/*
+	 * zfs_putpage() returns a positive ZFS errno, but this is the
+	 * kernel's writepage callback, which must return a negative
+	 * error or zero. Handing a positive value back trips
+	 * WARN_ON_ONCE() in the writeback loop and confuses the error
+	 * that gets recorded on the mapping.
+	 */
+	return (-ret);
 }
 
 #ifdef HAVE_WRITE_CACHE_PAGES
