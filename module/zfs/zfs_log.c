@@ -803,7 +803,12 @@ zfs_log_setsaxattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		lr->lr_size = 0;
 	}
 
-	itx->itx_sync = (zp->z_sync_cnt != 0);
+	/*
+	 * An xattr change is metadata and has to keep its order against
+	 * namespace operations on the same object. Left async it can be
+	 * stranded when a later sync itx for that object is committed,
+	 * and replay then applies the later record without this one.
+	 */
 	zil_itx_assign(zilog, itx, tx);
 }
 
