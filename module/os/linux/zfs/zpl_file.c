@@ -143,6 +143,9 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 			 * zil_commit() will give us a useful error. It's
 			 * safest if we just error out here.
 			 */
+#ifdef HAVE_SUPER_BLOCK_S_WB_ERR
+			errseq_set(&inode->i_sb->s_wb_err, error);
+#endif
 			return (error);
 		}
 	}
@@ -153,6 +156,17 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
+
+	/*
+	 * Record the failure on the superblock so a later
+	 * syncfs() can report it. Returning it here only tells
+	 * this caller; syncfs(2) reads s_wb_err, which nothing
+	 * else on this path ever sets.
+	 */
+#ifdef HAVE_SUPER_BLOCK_S_WB_ERR
+	if (error != 0)
+		errseq_set(&inode->i_sb->s_wb_err, error);
+#endif
 
 	return (error);
 }
