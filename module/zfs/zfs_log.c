@@ -606,6 +606,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	uint32_t blocksize = zp->z_blksz;
 	itx_wr_state_t write_state;
 	uint64_t gen = 0, log_size = 0;
+	uint64_t mtime[2] = { 0, 0 };
 
 	if (zil_replaying(zilog, tx) || zp->z_unlinked ||
 	    zfs_xattr_owner_unlinked(zp)) {
@@ -619,6 +620,8 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 
 	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(ZTOZSB(zp)), &gen,
 	    sizeof (gen));
+	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_MTIME(ZTOZSB(zp)),
+	    mtime, sizeof (mtime));
 
 	while (resid) {
 		itx_t *itx;
@@ -668,7 +671,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		lr->lr_foid = zp->z_id;
 		lr->lr_offset = off;
 		lr->lr_length = len;
-		lr->lr_blkoff = 0;
+		lr->lr_blkoff = zil_mtime_pack(mtime);
 		BP_ZERO(&lr->lr_blkptr);
 
 		itx->itx_private = ZTOZSB(zp);

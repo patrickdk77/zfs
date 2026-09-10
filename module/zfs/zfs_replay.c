@@ -821,6 +821,23 @@ zfs_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 			zfsvfs->z_replay_eof = eod;
 	}
 	error = zfs_write_simple(zp, data, length, offset, NULL);
+
+	/*
+	 * The write just set mtime to now.  Put back the time the
+	 * application actually saw, if the record carried it.
+	 */
+	if (error == 0) {
+		uint64_t mtime[2];
+
+		if (zil_mtime_unpack(lr->lr_blkoff, mtime)) {
+			vattr_t va = { 0 };
+
+			ZFS_TIME_DECODE(&va.va_mtime, mtime);
+			va.va_mask = ATTR_MTIME;
+			(void) zfs_setattr(zp, &va, 0, kcred);
+		}
+	}
+
 	zrele(zp);
 	zfsvfs->z_replay_eof = 0;	/* safety */
 

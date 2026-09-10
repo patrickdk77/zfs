@@ -345,11 +345,51 @@ typedef struct {
 	uint64_t	lr_foid;	/* file object to write */
 	uint64_t	lr_offset;	/* offset to write to */
 	uint64_t	lr_length;	/* user data length to write */
-	uint64_t	lr_blkoff;	/* no longer used */
+	uint64_t	lr_blkoff;	/* retired; holds mtime */
 	blkptr_t	lr_blkptr;	/* spa block pointer for replay */
 	/* write data will follow for small writes */
 	uint8_t		lr_data[];
 } lr_write_t;
+
+/*
+ * A write record carries no timestamp, so replaying one
+ * leaves the file with the time of the replay rather than
+ * the time the application last wrote.  lr_blkoff was
+ * retired long ago and written as zero ever since, which
+ * leaves eight bytes to put it in.
+ *
+ * Seconds go in the high bits and nanoseconds in the low
+ * thirty, which is exactly what nanoseconds need.  Zero
+ * means no timestamp, so a log written by anything that
+ * still zeroed the field replays the way it always has,
+ * and a reader that ignores the field is no worse off
+ * than today.  Nothing on disk changes shape.
+ */
+#define	ZIL_MTIME_NSEC_BITS	30
+#define	ZIL_MTIME_NSEC_MASK	((1ULL << ZIL_MTIME_NSEC_BITS) - 1)
+#define	ZIL_MTIME_SEC_MAX	(1ULL << (64 - ZIL_MTIME_NSEC_BITS))
+#define	ZIL_MTIME_NSEC_MAX	1000000000ULL
+
+static inline uint64_t
+zil_mtime_pack(const uint64_t mtime[2])
+{
+	if (mtime[0] == 0 || mtime[0] >= ZIL_MTIME_SEC_MAX ||
+	    mtime[1] >= ZIL_MTIME_NSEC_MAX)
+		return (0);
+	return ((mtime[0] << ZIL_MTIME_NSEC_BITS) | mtime[1]);
+}
+
+static inline boolean_t
+zil_mtime_unpack(uint64_t packed, uint64_t mtime[2])
+{
+	if (packed == 0)
+		return (B_FALSE);
+	mtime[1] = packed & ZIL_MTIME_NSEC_MASK;
+	if (mtime[1] >= ZIL_MTIME_NSEC_MAX)
+		return (B_FALSE);
+	mtime[0] = packed >> ZIL_MTIME_NSEC_BITS;
+	return (mtime[0] != 0);
+}
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
