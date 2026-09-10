@@ -59,7 +59,8 @@ extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr);
 
 #if defined(CONFIG_FS_POSIX_ACL)
-extern int zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type);
+extern int zpl_set_posix_acl(zidmap_t *idmap, struct inode *ip,
+    struct posix_acl *acl, int type);
 extern struct posix_acl *zpl_get_posix_acl(struct inode *ip, int type);
 extern int zpl_init_acl(struct inode *ip, struct inode *dir);
 extern int zpl_chmod_acl(struct inode *ip);

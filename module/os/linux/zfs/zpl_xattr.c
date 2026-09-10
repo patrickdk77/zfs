@@ -73,6 +73,7 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zap.h>
 #include <sys/vfs.h>
+#include <sys/policy.h>
 #include <sys/zpl.h>
 #include <linux/vfs_compat.h>
 
@@ -979,8 +980,23 @@ static xattr_handler_t zpl_xattr_security_handler = {
  * attribute implemented by filesystems in the kernel." - xattr(7)
  */
 #ifdef CONFIG_FS_POSIX_ACL
+static boolean_t
+zpl_acl_keeps_setgid(zidmap_t *idmap, struct inode *ip)
+{
+	cred_t *cr = CRED();
+	boolean_t keep;
+
+	crhold(cr);
+	keep = secpolicy_vnode_setids_setgids(cr,
+	    KGID_TO_SGID(ip->i_gid), idmap, zfs_i_user_ns(ip)) == 0;
+	crfree(cr);
+
+	return (keep);
+}
+
 int
-zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type)
+zpl_set_posix_acl(zidmap_t *idmap, struct inode *ip,
+    struct posix_acl *acl, int type)
 {
 	char *name, *value = NULL;
 	int error = 0;
@@ -998,6 +1014,11 @@ zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type)
 			if (error < 0) {
 				return (error);
 			} else {
+				if (idmap != NULL &&
+				    (mode & S_ISGID) != 0 &&
+				    !zpl_acl_keeps_setgid(idmap, ip))
+					mode &= ~S_ISGID;
+
 				/*
 				 * The mode bits will have been set by
 				 * ->zfs_setattr()->zfs_acl_chmod_setattr()
@@ -1118,7 +1139,8 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 		umode_t mode;
 
 		if (S_ISDIR(ip->i_mode)) {
-			error = zpl_set_posix_acl(ip, acl, ACL_TYPE_DEFAULT);
+			error = zpl_set_posix_acl(NULL, ip, acl,
+			    ACL_TYPE_DEFAULT);
 			if (error)
 				goto out;
 		}
@@ -1130,8 +1152,8 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 			atomic_inc_64(&ITOZ(ip)->z_seq);
 			zfs_mark_inode_dirty(ip);
 			if (error > 0) {
-				error = zpl_set_posix_acl(ip, acl,
-				    ACL_TYPE_ACCESS);
+				error = zpl_set_posix_acl(NULL,
+				    ip, acl, ACL_TYPE_ACCESS);
 			}
 		}
 	}
@@ -1159,7 +1181,8 @@ zpl_chmod_acl(struct inode *ip)
 
 	error = __posix_acl_chmod(&acl, GFP_KERNEL, ip->i_mode);
 	if (!error)
-		error = zpl_set_posix_acl(ip, acl, ACL_TYPE_ACCESS);
+		error = zpl_set_posix_acl(NULL, ip, acl,
+		    ACL_TYPE_ACCESS);
 
 	zpl_posix_acl_release(acl);
 
@@ -1277,7 +1300,7 @@ __zpl_xattr_acl_set_access(zidmap_t *idmap,
 	} else {
 		acl = NULL;
 	}
-	error = zpl_set_posix_acl(ip, acl, type);
+	error = zpl_set_posix_acl(idmap, ip, acl, type);
 	zpl_posix_acl_release(acl);
 
 	return (error);
@@ -1314,7 +1337,7 @@ __zpl_xattr_acl_set_default(zidmap_t *idmap,
 		acl = NULL;
 	}
 
-	error = zpl_set_posix_acl(ip, acl, type);
+	error = zpl_set_posix_acl(idmap, ip, acl, type);
 	zpl_posix_acl_release(acl);
 
 	return (error);

@@ -718,13 +718,14 @@ out:
 ZPL_IDMAP_IOP_DEFINE(int, zpl_set_acl, 3,
     struct dentry *, dentry, struct posix_acl *, acl, int, type)
 {
-	return (zpl_set_posix_acl(d_inode(dentry), acl, type));
+	return (zpl_set_posix_acl(idmap, d_inode(dentry), acl,
+	    type));
 }
 #else
 ZPL_IDMAP_IOP_DEFINE(int, zpl_set_acl, 3,
     struct inode *, ip, struct posix_acl *, acl, int, type)
 {
-	return (zpl_set_posix_acl(ip, acl, type));
+	return (zpl_set_posix_acl(idmap, ip, acl, type));
 }
 #endif
 
