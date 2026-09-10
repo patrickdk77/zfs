@@ -1162,6 +1162,7 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 	txtype = zfs_log_create_txtype(Z_FILE, vsecp, vap);
 	zfs_log_create(zilog, tx, txtype, dzp, zp, name,
 	    vsecp, acl_ids.z_fuidp, vap);
+	zfs_log_dir_mtime(zilog, tx, dzp);
 	zfs_acl_ids_free(&acl_ids);
 	dmu_tx_commit(tx);
 
@@ -1298,6 +1299,7 @@ zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 	/* XXX check changes to linux vnops */
 	txtype = TX_REMOVE;
 	zfs_log_remove(zilog, tx, txtype, dzp, name, obj, unlinked);
+	zfs_log_dir_mtime(zilog, tx, dzp);
 
 	dmu_tx_commit(tx);
 out:
@@ -1528,6 +1530,7 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 	txtype = zfs_log_create_txtype(Z_DIR, NULL, vap);
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, NULL,
 	    acl_ids.z_fuidp, vap);
+	zfs_log_dir_mtime(zilog, tx, dzp);
 
 out:
 	zfs_acl_ids_free(&acl_ids);
@@ -1611,6 +1614,7 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 		uint64_t txtype = TX_RMDIR;
 		zfs_log_remove(zilog, tx, txtype, dzp, name,
 		    ZFS_NO_OBJECT, B_FALSE);
+		zfs_log_dir_mtime(zilog, tx, dzp);
 	}
 
 	dmu_tx_commit(tx);
@@ -3502,6 +3506,10 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 			if (error == 0) {
 				zfs_log_rename(zilog, tx, TX_RENAME, sdzp,
 				    snm, tdzp, tnm, szp);
+				zfs_log_dir_mtime(zilog, tx, sdzp);
+				if (tdzp != sdzp)
+					zfs_log_dir_mtime(zilog, tx,
+					    tdzp);
 			} else {
 				/*
 				 * At this point, we have successfully created
@@ -3715,6 +3723,7 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 		zrele(zp);
 	} else {
 		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
+		zfs_log_dir_mtime(zilog, tx, dzp);
 	}
 
 	zfs_acl_ids_free(&acl_ids);
@@ -3910,6 +3919,7 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	if (error == 0) {
 		uint64_t txtype = TX_LINK;
 		zfs_log_link(zilog, tx, txtype, tdzp, szp, name);
+		zfs_log_dir_mtime(zilog, tx, tdzp);
 	}
 
 	dmu_tx_commit(tx);

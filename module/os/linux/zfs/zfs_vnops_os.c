@@ -786,6 +786,7 @@ top:
 			txtype |= TX_CI;
 		zfs_log_create(zilog, tx, txtype, dzp, zp, name,
 		    vsecp, acl_ids.z_fuidp, vap);
+		zfs_log_dir_mtime(zilog, tx, dzp);
 		zfs_acl_ids_free(&acl_ids);
 		dmu_tx_commit(tx);
 	} else {
@@ -1205,6 +1206,7 @@ top:
 	if (flags & FIGNORECASE)
 		txtype |= TX_CI;
 	zfs_log_remove(zilog, tx, txtype, dzp, name, obj, unlinked);
+	zfs_log_dir_mtime(zilog, tx, dzp);
 
 	dmu_tx_commit(tx);
 out:
@@ -1407,6 +1409,7 @@ top:
 		txtype |= TX_CI;
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, vsecp,
 	    acl_ids.z_fuidp, vap);
+	zfs_log_dir_mtime(zilog, tx, dzp);
 
 out:
 	zfs_acl_ids_free(&acl_ids);
@@ -1547,6 +1550,7 @@ top:
 			txtype |= TX_CI;
 		zfs_log_remove(zilog, tx, txtype, dzp, name, ZFS_NO_OBJECT,
 		    B_FALSE);
+		zfs_log_dir_mtime(zilog, tx, dzp);
 	}
 
 	dmu_tx_commit(tx);
@@ -3253,6 +3257,9 @@ top:
 		    sdzp, sdl->dl_name, tdzp, tdl->dl_name, szp);
 		break;
 	}
+	zfs_log_dir_mtime(zilog, tx, sdzp);
+	if (tdzp != sdzp)
+		zfs_log_dir_mtime(zilog, tx, tdzp);
 
 commit:
 	dmu_tx_commit(tx);
@@ -3478,6 +3485,7 @@ top:
 		if (flags & FIGNORECASE)
 			txtype |= TX_CI;
 		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
+		zfs_log_dir_mtime(zilog, tx, dzp);
 
 		zfs_znode_update_vfs(dzp);
 		zfs_znode_update_vfs(zp);
@@ -3725,6 +3733,7 @@ top:
 			if (flags & FIGNORECASE)
 				txtype |= TX_CI;
 			zfs_log_link(zilog, tx, txtype, tdzp, szp, name);
+			zfs_log_dir_mtime(zilog, tx, tdzp);
 		}
 	} else if (is_tmpfile) {
 		/* restore z_unlinked since when linking failed */

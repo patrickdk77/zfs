@@ -776,6 +776,45 @@ zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 }
 
 /*
+ * Handles the TX_SETATTR that carries a directory's mtime.
+ *
+ * A namespace record has no room for the parent directory's new
+ * mtime, so replaying one leaves the directory stamped with the time
+ * of the replay.  An ordinary setattr record behind the namespace
+ * record puts the recorded value back, and any reader that can
+ * replay a setattr can replay this.
+ */
+void
+zfs_log_dir_mtime(zilog_t *zilog, dmu_tx_t *tx, znode_t *dzp)
+{
+	itx_t		*itx;
+	lr_setattr_t	*lr;
+	uint64_t	mtime[2];
+
+	if (zil_replaying(zilog, tx) || dzp->z_unlinked)
+		return;
+
+	if (sa_lookup(dzp->z_sa_hdl, SA_ZPL_MTIME(ZTOZSB(dzp)),
+	    mtime, sizeof (mtime)) != 0)
+		return;
+
+	itx = zil_itx_create(TX_SETATTR, sizeof (*lr));
+	lr = (lr_setattr_t *)&itx->itx_lr;
+	lr->lr_foid = dzp->z_id;
+	lr->lr_mask = (uint64_t)ATTR_MTIME;
+	lr->lr_mode = 0;
+	lr->lr_uid = 0;
+	lr->lr_gid = 0;
+	lr->lr_size = 0;
+	lr->lr_atime[0] = 0;
+	lr->lr_atime[1] = 0;
+	lr->lr_mtime[0] = mtime[0];
+	lr->lr_mtime[1] = mtime[1];
+
+	zil_itx_assign(zilog, itx, tx);
+}
+
+/*
  * Handles TX_SETSAXATTR transactions.
  */
 void
