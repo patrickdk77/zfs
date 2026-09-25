@@ -65,6 +65,7 @@ extern int zfs_getpage(struct inode *ip, struct page *pp);
 extern int zfs_putpage(struct inode *ip, struct page *pp,
     struct writeback_control *wbc, boolean_t for_sync);
 extern int zfs_dirty_inode(struct inode *ip, int flags);
+extern int zfs_znode_set_mode(znode_t *zp, uint64_t mode);
 extern int zfs_map(struct inode *ip, offset_t off, caddr_t *addrp,
     size_t len, unsigned long vm_flags);
 extern void zfs_zrele_async(znode_t *zp);

@@ -2460,6 +2460,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zil_acl_mode/cleanup.ksh \
 	functional/zil_acl_mode/setup.ksh \
 	functional/zil_acl_mode/zil_acl_mode_default.ksh \
+	functional/zil_acl_mode/zil_acl_mode_setfacl.ksh \
 	functional/zil_acl_mode/zil_acl_mode_umask.ksh \
 	functional/zoned_uid/cleanup.ksh \
 	functional/zoned_uid/setup.ksh \

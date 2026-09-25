@@ -652,6 +652,67 @@ zfs_mark_inode_dirty(struct inode *ip)
 	mark_inode_dirty(ip);
 }
 
+/*
+ * Set the mode and ctime and log the mode change. Used where the
+ * mode follows from a POSIX ACL, so no setattr policy applies.
+ */
+int
+zfs_znode_set_mode(znode_t *zp, uint64_t mode)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	struct inode *ip = ZTOI(zp);
+	sa_bulk_attr_t bulk[3];
+	inode_timespec_t now;
+	uint64_t ctime[2];
+	vattr_t va = {0};
+	dmu_tx_t *tx;
+	int count = 0;
+	int error;
+
+	if (zfs_is_readonly(zfsvfs) ||
+	    dmu_objset_is_snapshot(zfsvfs->z_os))
+		return (SET_ERROR(EROFS));
+
+	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+		return (error);
+
+	tx = dmu_tx_create(zfsvfs->z_os);
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl, ZFS_SEQ_MAY_GROW(zp));
+	zfs_sa_upgrade_txholds(tx, zp);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (error) {
+		dmu_tx_abort(tx);
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
+	mutex_enter(&zp->z_lock);
+	ip->i_mode = zp->z_mode = mode;
+	now = current_time(ip);
+	zpl_inode_set_ctime_to_ts(ip, now);
+	ZFS_TIME_ENCODE(&now, ctime);
+	atomic_inc_64(&zp->z_seq);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zfsvfs), NULL,
+	    &zp->z_mode, 8);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs), NULL,
+	    ctime, 16);
+	ZFS_PERSIST_SEQ(zp, bulk, count);
+	ASSERT3S(count, <=, ARRAY_SIZE(bulk));
+	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
+	mutex_exit(&zp->z_lock);
+
+	if (error == 0) {
+		va.va_mask = ATTR_MODE;
+		va.va_mode = mode;
+		zfs_log_setattr(zfsvfs->z_log, tx, TX_SETATTR, zp,
+		    &va, ATTR_MODE, NULL);
+	}
+
+	dmu_tx_commit(tx);
+	zfs_exit(zfsvfs, FTAG);
+	return (error);
+}
+
 static uint64_t empty_xattr;
 static uint64_t pad[4];
 static zfs_acl_phys_t acl_phys;
