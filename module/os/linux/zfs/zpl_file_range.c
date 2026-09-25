@@ -87,6 +87,18 @@ zpl_clone_file_range_impl(struct file *src_file, loff_t src_off,
 
 	zpl_remap_lock_two(src_i, dst_i);
 
+	/*
+	 * Drop the setid bits and security capabilities, as
+	 * generic_remap_file_range_prep() does for other filesystems.
+	 * file_remove_privs() needs the destination inode lock, which
+	 * zpl_remap_lock_two() took.
+	 */
+	err = file_remove_privs(dst_file);
+	if (err) {
+		zpl_remap_unlock_two(src_i, dst_i);
+		return (err);
+	}
+
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 
