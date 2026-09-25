@@ -2708,10 +2708,19 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 	itxs_t *itxs, *clean = NULL;
 
 	/*
-	 * Ensure the data of a renamed file is committed before the rename.
+	 * Commit a file's async itxs before a rename, link or remove
+	 * of it, so replay cannot apply the namespace change without
+	 * them.
 	 */
-	if ((itx->itx_lr.lrc_txtype & ~TX_CI) == TX_RENAME)
+	switch (itx->itx_lr.lrc_txtype & ~TX_CI) {
+	case TX_RENAME:
+	case TX_RENAME_EXCHANGE:
+	case TX_RENAME_WHITEOUT:
+	case TX_LINK:
+	case TX_REMOVE:
 		zil_async_to_sync(zilog, itx->itx_oid);
+		break;
+	}
 
 	if (spa_freeze_txg(zilog->zl_spa) != UINT64_MAX)
 		txg = ZILTEST_TXG;

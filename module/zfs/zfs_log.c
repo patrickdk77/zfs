@@ -450,6 +450,7 @@ zfs_log_link(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	lr->lr_doid = dzp->z_id;
 	lr->lr_link_obj = zp->z_id;
 	memcpy(&lr->lr_data[0], name, namesize);
+	itx->itx_oid = zp->z_id;
 
 	zil_itx_assign(zilog, itx, tx);
 }
