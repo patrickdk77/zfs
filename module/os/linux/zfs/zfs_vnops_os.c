@@ -3840,8 +3840,11 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	int		cnt = 0;
 	struct address_space *mapping;
 
-	if ((err = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
-		return (err);
+	if ((err = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0) {
+		redirty_page_for_writepage(wbc, pp);
+		unlock_page(pp);
+		return (for_sync ? err : 0);
+	}
 
 	ASSERT(PageLocked(pp));
 
