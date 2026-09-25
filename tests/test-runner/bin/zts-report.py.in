@@ -145,6 +145,12 @@ noreuse_reason = 'POSIX_FADV_NOREUSE needs Linux 6.3+'
 dontcache_reason = 'Kernel RWF_DONTCACHE support required'
 
 #
+# syncfs(2) reports writeback errors recorded on the superblock since
+# Linux 5.8.
+#
+syncfs_reason = 'syncfs(2) error reporting needs Linux 5.8+'
+
+#
 # Some statx fields are not supported by all kernels
 #
 statx_reason = 'Needed statx(2) field not supported on this kernel'
@@ -329,6 +335,8 @@ elif sys.platform.startswith('linux'):
             ['SKIP', cfr_reason],
         'cp_files/cp_files_002_pos': ['SKIP', cfr_reason],
         'events/events_002_pos': ['FAIL', 18271],
+        'failmode/failmode_fsync_writeback_error':
+            ['SKIP', syncfs_reason],
         'fault/auto_online_002_pos': ['FAIL', 11889],
         'fault/auto_replace_001_pos': ['FAIL', 14851],
         'fault/auto_spare_002_pos': ['FAIL', 11889],
