@@ -1690,6 +1690,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 	sa_bulk_attr_t bulk[4];
 	int count = 0;
 	int error;
+	boolean_t netfree = B_FALSE;
 
 	if ((error = sa_lookup(zp->z_sa_hdl, SA_ZPL_MODE(zfsvfs), &mode,
 	    sizeof (mode))) != 0)
@@ -1710,12 +1711,20 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 		    off + len > zp->z_size)
 			error = zfs_extend(zp, off+len);
 	}
+	netfree = B_TRUE;
 	if (error || !log)
 		return (error);
 log:
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, ZFS_SEQ_MAY_GROW(zp));
 	zfs_sa_upgrade_txholds(tx, zp);
+	/*
+	 * zfs_trunc() or zfs_free_range() has already freed the
+	 * blocks. Mark this tx netfree so a full pool cannot fail it
+	 * with ENOSPC after the free has happened.
+	 */
+	if (netfree)
+		dmu_tx_mark_netfree(tx);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);

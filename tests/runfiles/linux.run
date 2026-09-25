@@ -193,6 +193,10 @@ timeout = 1200
 tests = ['umount_unlinked_drain', 'mount_loopback', 'mount_null_source']
 tags = ['functional', 'mount']
 
+[tests/functional/no_space:Linux]
+tests = ['enospc_freesp']
+tags = ['functional', 'no_space']
+
 [tests/functional/pam:Linux]
 tests = ['pam_basic', 'pam_change_unmounted', 'pam_mount_recursively',
     'pam_nounmount', 'pam_recursive', 'pam_short_password']
