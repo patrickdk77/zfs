@@ -174,7 +174,7 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 			 * zil_commit() will give us a useful error. It's
 			 * safest if we just error out here.
 			 */
-			return (error);
+			goto out;
 		}
 	}
 
@@ -185,6 +185,12 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
+out:
+	/* Record the error in s_wb_err for syncfs(2) to report. */
+#ifdef HAVE_SUPER_BLOCK_S_WB_ERR
+	if (error != 0)
+		errseq_set(&inode->i_sb->s_wb_err, error);
+#endif
 	return (error);
 }
 
