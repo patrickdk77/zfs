@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+export ZAM_VDIR=$TEST_BASE_DIR/disk-zil-acl-mode
+export ZAM_VDEV="$ZAM_VDIR/a"
+
+#
+# Create the pool and fsync one file so the dataset has a ZIL
+# header before the pool is frozen. Without a header the log
+# records nothing after the freeze.
+#
+function zam_setup_pool # <acltype>
+{
+	typeset acltype=$1
+
+	log_must rm -rf $ZAM_VDIR
+	log_must mkdir -p $ZAM_VDIR
+	log_must truncate -s $MINVDEVSIZE $ZAM_VDEV
+	log_must zpool create -O compression=off -O acltype=$acltype \
+	    $TESTPOOL $ZAM_VDEV
+	log_must zfs create $TESTPOOL/$TESTFS
+	log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/zilhdr \
+	    conv=fdatasync,fsync bs=1 count=1
+	sync_pool $TESTPOOL
+}
+
+function zam_cleanup_pool
+{
+	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
+	rm -rf $ZAM_VDIR
+}
+
+function zam_replay
+{
+	log_must zfs unmount /$TESTPOOL/$TESTFS
+	log_note "Transactions to replay:"
+	log_must zdb -iv $TESTPOOL/$TESTFS
+	log_must zpool export $TESTPOOL
+	log_must zpool import -f -d $ZAM_VDIR $TESTPOOL
+}
+
+function zam_mode # <path>
+{
+	stat -c '%a' "$1"
+}
+
+#
+# Compare an object's mode after the replay with the saved mode.
+# Report a missing object separately from a wrong mode.
+#
+function zam_check # <path> <mode before> <label>
+{
+	typeset path=$1 before=$2 label=$3
+	typeset after
+
+	if [[ ! -e $path ]]; then
+		log_note "$label: $path did not come back from replay"
+		return 1
+	fi
+
+	after=$(zam_mode $path)
+	if [[ "$after" != "$before" ]]; then
+		log_note "$label: $path was $before," \
+		    "replayed as $after"
+		return 1
+	fi
+
+	log_note "$label: $path kept mode $before"
+	return 0
+}

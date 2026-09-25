@@ -1092,53 +1092,89 @@ zpl_get_posix_acl(struct inode *ip, int type)
 	return (acl);
 }
 
+/*
+ * Compute a new object's mode and inherited ACLs before the create,
+ * so the create record in the intent log carries the final mode.
+ * With acltype=posix the VFS leaves the umask to the filesystem,
+ * and this applies it when the parent has no default ACL.
+ */
 int
-zpl_init_acl(struct inode *ip, struct inode *dir)
+zpl_init_acl_prepare(struct inode *dir, umode_t *mode,
+    zpl_acl_prep_t *prep)
 {
-	struct posix_acl *acl = NULL;
-	int error = 0;
+	struct posix_acl *acl;
+	int error;
 
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
+	prep->zap_default = NULL;
+	prep->zap_access = NULL;
+
+	if (ITOZSB(dir)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (0);
 
-	if (!S_ISLNK(ip->i_mode)) {
-		acl = zpl_get_posix_acl(dir, ACL_TYPE_DEFAULT);
-		if (IS_ERR(acl))
-			return (PTR_ERR(acl));
-		if (!acl) {
-			ITOZ(ip)->z_mode = (ip->i_mode &= ~current_umask());
-			zpl_inode_set_ctime_to_ts(ip, current_time(ip));
-			atomic_inc_64(&ITOZ(ip)->z_seq);
-			zfs_mark_inode_dirty(ip);
-			return (0);
-		}
+	if (S_ISLNK(*mode))
+		return (0);
+
+	acl = zpl_get_posix_acl(dir, ACL_TYPE_DEFAULT);
+	if (IS_ERR(acl))
+		return (PTR_ERR(acl));
+
+	if (acl == NULL) {
+		*mode &= ~current_umask();
+		return (0);
 	}
 
-	if (acl) {
-		umode_t mode;
+	/*
+	 * __posix_acl_create() drops the reference it is given and
+	 * replaces it with the access ACL, so take another reference
+	 * for the default ACL first.
+	 */
+	if (S_ISDIR(*mode))
+		prep->zap_default = posix_acl_dup(acl);
 
-		if (S_ISDIR(ip->i_mode)) {
-			error = zpl_set_posix_acl(ip, acl, ACL_TYPE_DEFAULT);
-			if (error)
-				goto out;
-		}
-
-		mode = ip->i_mode;
-		error = __posix_acl_create(&acl, GFP_KERNEL, &mode);
-		if (error >= 0) {
-			ip->i_mode = ITOZ(ip)->z_mode = mode;
-			atomic_inc_64(&ITOZ(ip)->z_seq);
-			zfs_mark_inode_dirty(ip);
-			if (error > 0) {
-				error = zpl_set_posix_acl(ip, acl,
-				    ACL_TYPE_ACCESS);
-			}
-		}
+	error = __posix_acl_create(&acl, GFP_KERNEL, mode);
+	if (error < 0) {
+		zpl_posix_acl_release(prep->zap_default);
+		prep->zap_default = NULL;
+		return (error);
 	}
-out:
-	zpl_posix_acl_release(acl);
+
+	/*
+	 * A zero return means the mode fully expresses the ACL and
+	 * there is no access ACL to store.
+	 */
+	if (error > 0)
+		prep->zap_access = acl;
+	else
+		zpl_posix_acl_release(acl);
+
+	return (0);
+}
+
+int
+zpl_init_acl_apply(struct inode *ip, zpl_acl_prep_t *prep)
+{
+	int error = 0;
+
+	if (prep->zap_default != NULL) {
+		error = zpl_set_posix_acl(ip, prep->zap_default,
+		    ACL_TYPE_DEFAULT);
+	}
+
+	if (error == 0 && prep->zap_access != NULL) {
+		error = zpl_set_posix_acl(ip, prep->zap_access,
+		    ACL_TYPE_ACCESS);
+	}
 
 	return (error);
+}
+
+void
+zpl_init_acl_release(zpl_acl_prep_t *prep)
+{
+	zpl_posix_acl_release(prep->zap_default);
+	zpl_posix_acl_release(prep->zap_access);
+	prep->zap_default = NULL;
+	prep->zap_access = NULL;
 }
 
 int

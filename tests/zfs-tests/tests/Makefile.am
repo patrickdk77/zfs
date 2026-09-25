@@ -400,6 +400,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/vdev_zaps/vdev_zaps.kshlib \
 	functional/xattr/xattr.cfg \
 	functional/xattr/xattr_common.kshlib \
+	functional/zil_acl_mode/zil_acl_mode.kshlib \
 	functional/zoned_uid/zoned_uid.cfg \
 	functional/zoned_uid/zoned_uid_common.kshlib \
 	functional/zvol/zvol.cfg \
@@ -2456,6 +2457,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/xattr/xattr_013_pos.ksh \
 	functional/xattr/xattr_014_pos.ksh \
 	functional/xattr/xattr_compat.ksh \
+	functional/zil_acl_mode/cleanup.ksh \
+	functional/zil_acl_mode/setup.ksh \
+	functional/zil_acl_mode/zil_acl_mode_default.ksh \
+	functional/zil_acl_mode/zil_acl_mode_umask.ksh \
 	functional/zoned_uid/cleanup.ksh \
 	functional/zoned_uid/setup.ksh \
 	functional/zoned_uid/zoned_uid_001_pos.ksh \

@@ -58,16 +58,47 @@ extern ssize_t zpl_xattr_list(struct dentry *dentry, char *buf, size_t size);
 extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr);
 
+struct posix_acl;
+
+/*
+ * ACLs a new object inherits. zpl_init_acl_prepare() fills this in
+ * before the create so the create record logs the final mode.
+ */
+typedef struct zpl_acl_prep {
+	struct posix_acl *zap_default;
+	struct posix_acl *zap_access;
+} zpl_acl_prep_t;
+
 #if defined(CONFIG_FS_POSIX_ACL)
 extern int zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type);
 extern struct posix_acl *zpl_get_posix_acl(struct inode *ip, int type);
-extern int zpl_init_acl(struct inode *ip, struct inode *dir);
+extern int zpl_init_acl_prepare(struct inode *dir, umode_t *mode,
+    zpl_acl_prep_t *prep);
+extern int zpl_init_acl_apply(struct inode *ip, zpl_acl_prep_t *prep);
+extern void zpl_init_acl_release(zpl_acl_prep_t *prep);
 extern int zpl_chmod_acl(struct inode *ip);
 #else
 static inline int
-zpl_init_acl(struct inode *ip, struct inode *dir)
+zpl_init_acl_prepare(struct inode *dir, umode_t *mode,
+    zpl_acl_prep_t *prep)
 {
+	(void) dir, (void) mode;
+	prep->zap_default = NULL;
+	prep->zap_access = NULL;
 	return (0);
+}
+
+static inline int
+zpl_init_acl_apply(struct inode *ip, zpl_acl_prep_t *prep)
+{
+	(void) ip, (void) prep;
+	return (0);
+}
+
+static inline void
+zpl_init_acl_release(zpl_acl_prep_t *prep)
+{
+	(void) prep;
 }
 
 static inline int
