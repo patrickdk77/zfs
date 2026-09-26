@@ -49,7 +49,8 @@
  */
 #define	SUPPORTED_FEATURES (DMU_BACKUP_FEATURE_EMBED_DATA | \
     DMU_BACKUP_FEATURE_LZ4 | DMU_BACKUP_FEATURE_LARGE_BLOCKS | \
-    DMU_BACKUP_FEATURE_COMPRESSED | DMU_BACKUP_FEATURE_ZSTD)
+    DMU_BACKUP_FEATURE_COMPRESSED | DMU_BACKUP_FEATURE_ZSTD | \
+    DMU_BACKUP_FEATURE_CLONES)
 
 typedef struct {
 	struct raw_stream {
@@ -385,6 +386,17 @@ chain_replay_raw(void *item_in, void *context_in)
 			ASSERT0(drrwe->drr_offset);
 			context->volume.size = apply_properties(context,
 			    item->dp_payload, item->dp_payload_size);
+		}
+		break;
+	}
+	case DRR_CLONE: {
+		struct drr_clone *drrc = &drr->drr_u.drr_clone;
+
+		if (drrc->drr_object == ZVOL_OBJ) {
+			errx(EXIT_FAILURE, "cloned volume block at "
+			    "offset %llu is not supported, "
+			    "aborting...",
+			    (u_longlong_t)drrc->drr_offset);
 		}
 		break;
 	}

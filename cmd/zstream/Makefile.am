@@ -29,6 +29,7 @@ zstream_SOURCES = \
 	%D%/zstream_selftest.c \
 	%D%/zstream_selftest.h \
 	%D%/zstream_selftest_queue.c \
+	%D%/zstream_selftest_records.c \
 	%D%/zstream_token.c \
 	%D%/zstream_queue.c \
 	%D%/zstream_queue.h \

@@ -428,6 +428,25 @@ dump_redact_record(drr_packet_t *item)
 	}
 }
 
+static void
+dump_clone_record(drr_packet_t *item)
+{
+	struct drr_clone *drrc = &item->dp_drr.drr_u.drr_clone;
+
+	if (OPTION_ENABLED(CA_DUMP_ALL_RECORDS)) {
+		printf("CLONE object = %llu offset = %llu "
+		    "length = %llu toguid = %llx refguid = %llx "
+		    "refobject = %llu refoffset = %llu\n",
+		    (u_longlong_t)drrc->drr_object,
+		    (u_longlong_t)drrc->drr_offset,
+		    (u_longlong_t)drrc->drr_length,
+		    (u_longlong_t)drrc->drr_toguid,
+		    (u_longlong_t)drrc->drr_refguid,
+		    (u_longlong_t)drrc->drr_refobject,
+		    (u_longlong_t)drrc->drr_refoffset);
+	}
+}
+
 static const record_dumper_t record_dumpers[] = {
 	{ "DRR_BEGIN", 		dump_begin_record },
 	{ "DRR_OBJECT", 	dump_object_record },
@@ -439,7 +458,8 @@ static const record_dumper_t record_dumpers[] = {
 	{ "DRR_SPILL", 		dump_spill_record },
 	{ "DRR_WRITE_EMBEDDED",	dump_write_embedded_record },
 	{ "DRR_OBJECT_RANGE",	dump_object_range_record },
-	{ "DRR_REDACT",		dump_redact_record }
+	{ "DRR_REDACT",		dump_redact_record },
+	{ "DRR_CLONE",		dump_clone_record }
 };
 
 static disposition_t
@@ -550,7 +570,8 @@ zstream_do_dump(int argc, char *argv[])
 	int print_order[] = {
 		DRR_BEGIN, DRR_END, DRR_OBJECT, DRR_FREEOBJECTS,
 		DRR_WRITE, DRR_WRITE_BYREF, DRR_WRITE_EMBEDDED,
-		DRR_FREE, DRR_SPILL, DRR_OBJECT_RANGE, DRR_REDACT
+		DRR_FREE, DRR_SPILL, DRR_OBJECT_RANGE, DRR_REDACT,
+		DRR_CLONE
 	};
 
 	printf("SUMMARY:\n");

@@ -2438,6 +2438,13 @@ The fill fraction of the
 prefetch queue.
 The fill fraction controls the timing with which internal threads are woken up.
 .
+.It Sy zfs_send_clone_table_max Ns = Ns Sy 262144 Pq uint
+The most shared blocks a
+.Nm zfs Cm send Fl k
+remembers.
+Once the table is full, further shared blocks are sent as data.
+Each entry uses about 80 bytes.
+.
 .It Sy zfs_send_queue_length Ns = Ns Sy 16777216 Ns B Po 16 MiB Pc Pq uint
 The maximum number of bytes allowed that will be prefetched by
 .Nm zfs Cm send .
