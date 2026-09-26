@@ -1338,6 +1338,42 @@ brt_pending_remove(spa_t *spa, const blkptr_t *bp, dmu_tx_t *tx)
 		kmem_cache_free(brt_entry_cache, bre);
 }
 
+/*
+ * Return B_TRUE if a clone of this block waits in a pending tree.
+ * brt_pending_apply() moves clones into the BRT in syncing context,
+ * and brt_entry_get_refcount() does not count them until it has.
+ * Clones of blocks with the DEDUP bit wait in the dedup shards, which
+ * are not searched here.
+ */
+boolean_t
+brt_pending_exists(spa_t *spa, const blkptr_t *bp)
+{
+	brt_entry_t bre_search;
+	boolean_t found = B_FALSE;
+
+	if (spa->spa_brt_nvdevs == 0)
+		return (B_FALSE);
+
+	uint64_t vdevid = DVA_GET_VDEV(&bp->blk_dva[0]);
+	brt_vdev_t *brtvd = brt_vdev(spa, vdevid, B_FALSE);
+	if (brtvd == NULL)
+		return (B_FALSE);
+
+	bre_search.bre_bp = *bp;
+
+	mutex_enter(&brtvd->bv_pending_lock);
+	for (int i = 0; i < TXG_SIZE; i++) {
+		if (avl_find(&brtvd->bv_pending_tree[i], &bre_search,
+		    NULL) != NULL) {
+			found = B_TRUE;
+			break;
+		}
+	}
+	mutex_exit(&brtvd->bv_pending_lock);
+
+	return (found);
+}
+
 typedef struct brt_pending_vdev_arg {
 	spa_t		*bpva_spa;
 	brt_vdev_t	*bpva_brtvd;
@@ -1354,11 +1390,13 @@ brt_pending_apply_vdev(void *arg)
 	brt_entry_t *bre, *nbre;
 
 	/*
-	 * We are in syncing context, so no other bv_pending_tree accesses
-	 * are possible for the TXG.  So we don't need bv_pending_lock.
+	 * brt_pending_exists() reads the pending trees of every TXG
+	 * from open context, so the swap takes bv_pending_lock.
 	 */
 	ASSERT(avl_is_empty(&brtvd->bv_tree));
+	mutex_enter(&brtvd->bv_pending_lock);
 	avl_swap(&brtvd->bv_tree, &brtvd->bv_pending_tree[txg & TXG_MASK]);
+	mutex_exit(&brtvd->bv_pending_lock);
 
 	for (bre = avl_first(&brtvd->bv_tree); bre; bre = nbre) {
 		nbre = AVL_NEXT(&brtvd->bv_tree, bre);
@@ -1450,7 +1488,9 @@ brt_pending_apply(spa_t *spa, uint64_t txg)
 
 	/*
 	 * We are in syncing context, so no open context accesses to the
-	 * pending trees of this TXG are possible and we need no locks.
+	 * dedup pending trees of this TXG are possible and we need no
+	 * locks for them.  brt_pending_exists() does read the vdev
+	 * pending trees, so changes to those take bv_pending_lock.
 	 *
 	 * Reference the dedup'd blocks in the DDT.  Process the shards in
 	 * parallel, since random DDT ZAP lookups are CPU-expensive due to
@@ -1484,7 +1524,9 @@ brt_pending_apply(spa_t *spa, uint64_t txg)
 		while ((bre = avl_destroy_nodes(tree, &cookie)) != NULL) {
 			uint64_t vdevid = DVA_GET_VDEV(&bre->bre_bp.blk_dva[0]);
 			brt_vdev_t *brtvd = brt_vdev(spa, vdevid, B_TRUE);
+			mutex_enter(&brtvd->bv_pending_lock);
 			avl_add(&brtvd->bv_pending_tree[txg & TXG_MASK], bre);
+			mutex_exit(&brtvd->bv_pending_lock);
 		}
 	}
 

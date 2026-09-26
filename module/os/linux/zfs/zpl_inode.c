@@ -27,6 +27,8 @@
 #include <sys/vfs.h>
 #include <sys/zpl.h>
 #include <sys/file.h>
+#include <sys/fiemap.h>
+#include <linux/fiemap.h>
 
 static struct dentry *
 zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
@@ -745,10 +747,42 @@ zpl_get_acl(struct inode *ip, int type)
 
 #endif
 
+/*
+ * The kernel rejects request flags it does not know, so the ZFS ones
+ * are masked out before the check.  Before 5.8 there is no
+ * fiemap_prep(): the VFS checks the range and handles
+ * FIEMAP_FLAG_SYNC before calling here.
+ */
+static int
+zpl_fiemap(struct inode *ip, struct fiemap_extent_info *fei,
+    u64 start, u64 len)
+{
+	uint32_t flags = fei->fi_flags;
+	fstrans_cookie_t cookie;
+	int error;
+
+	fei->fi_flags &= ~ZFS_FIEMAP_FLAGS_ZFS;
+#ifdef HAVE_FIEMAP_PREP
+	error = fiemap_prep(ip, fei, start, &len,
+	    ZFS_FIEMAP_FLAGS_COMPAT);
+#else
+	error = fiemap_check_flags(fei, ZFS_FIEMAP_FLAGS_COMPAT);
+#endif
+	if (error != 0)
+		return (error);
+
+	cookie = spl_fstrans_mark();
+	error = -zfs_fiemap(ip, fei, start, len, flags);
+	spl_fstrans_unmark(cookie);
+
+	return (error);
+}
+
 const struct inode_operations zpl_inode_operations = {
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
 	.listxattr	= zpl_xattr_list,
+	.fiemap		= zpl_fiemap,
 #if defined(CONFIG_FS_POSIX_ACL)
 	.set_acl	= zpl_set_acl,
 #if defined(HAVE_GET_INODE_ACL)
