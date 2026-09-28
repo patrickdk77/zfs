@@ -44,6 +44,7 @@ typedef struct {
  * Modules with test cases to offer. Each array ends with a NULL tc_name.
  */
 extern const test_case_t selftest_queue_cases[];
+extern const test_case_t selftest_records_cases[];
 
 /*
  * The seed for this run, set by the harness before any test runs. Printed

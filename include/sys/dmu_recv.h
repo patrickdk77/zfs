@@ -97,6 +97,8 @@ int recv_check_drr_object(const struct drr_object *, spa_t *, boolean_t raw,
     boolean_t spill, uint64_t featureflags, char *errbuf, size_t errbuflen);
 int recv_check_drr_free(const struct drr_free *, char *errbuf,
     size_t errbuflen);
+int recv_check_drr_clone(const struct drr_clone *, char *errbuf,
+    size_t errbuflen);
 int recv_check_drr_freeobjects(const struct drr_freeobjects *, char *errbuf,
     size_t errbuflen);
 int recv_check_drr_object_range(const struct drr_object_range *, boolean_t raw,

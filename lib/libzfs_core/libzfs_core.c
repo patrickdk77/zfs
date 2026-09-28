@@ -837,6 +837,10 @@ lzc_send_wrapper(int (*func)(int, void *), int orig_fd, void *data)
  * If "flags" contains LZC_SEND_FLAG_RAW, the stream is generated, for encrypted
  * datasets, by sending data exactly as it exists on disk.  This allows backups
  * to be taken even if encryption keys are not currently loaded.
+ *
+ * If "flags" contains LZC_SEND_FLAG_CLONES, a block shared by block
+ * cloning is sent once and later copies become DRR_CLONE records.
+ * The receiving pool must have the block_cloning feature enabled.
  */
 int
 lzc_send(const char *snapname, const char *from, int fd,
@@ -898,6 +902,8 @@ lzc_send_resume_redacted_cb_impl(const char *snapname, const char *from, int fd,
 		fnvlist_add_boolean(args, "rawok");
 	if (flags & LZC_SEND_FLAG_SAVED)
 		fnvlist_add_boolean(args, "savedok");
+	if (flags & LZC_SEND_FLAG_CLONES)
+		fnvlist_add_boolean(args, "clonesok");
 	if (resumeobj != 0 || resumeoff != 0) {
 		fnvlist_add_uint64(args, "resume_object", resumeobj);
 		fnvlist_add_uint64(args, "resume_offset", resumeoff);
@@ -982,6 +988,8 @@ lzc_send_space_resume_redacted_cb_impl(const char *snapname, const char *from,
 		fnvlist_add_boolean(args, "compressok");
 	if (flags & LZC_SEND_FLAG_RAW)
 		fnvlist_add_boolean(args, "rawok");
+	if (flags & LZC_SEND_FLAG_CLONES)
+		fnvlist_add_boolean(args, "clonesok");
 	if (resumeobj != 0 || resumeoff != 0) {
 		fnvlist_add_uint64(args, "resume_object", resumeobj);
 		fnvlist_add_uint64(args, "resume_offset", resumeoff);

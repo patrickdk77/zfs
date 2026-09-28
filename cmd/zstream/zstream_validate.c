@@ -79,6 +79,7 @@ chain_validate_records(void *item_in, void *context_in)
 	struct drr_free *drrf		= &drr->drr_u.drr_free;
 	struct drr_freeobjects *drrfo	= &drr->drr_u.drr_freeobjects;
 	struct drr_object_range *drror	= &drr->drr_u.drr_object_range;
+	struct drr_clone *drrc		= &drr->drr_u.drr_clone;
 	char errbuf[RECV_CHECK_ERRBUFLEN];
 	int err;
 	boolean_t is_raw;
@@ -174,6 +175,17 @@ chain_validate_records(void *item_in, void *context_in)
 
 	case DRR_OBJECT_RANGE:
 		err = recv_check_drr_object_range(drror, is_raw, errbuf,
+		    sizeof (errbuf));
+		validate_fail(err, errbuf);
+		break;
+
+	case DRR_CLONE:
+		if (!validate_stream_has_feature(context,
+		    DMU_BACKUP_FEATURE_CLONES)) {
+			validate_fail(EINVAL, "DRR_CLONE in a stream "
+			    "without the clones feature");
+		}
+		err = recv_check_drr_clone(drrc, errbuf,
 		    sizeof (errbuf));
 		validate_fail(err, errbuf);
 		break;

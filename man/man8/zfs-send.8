@@ -31,19 +31,19 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm send
-.Op Fl DLPUVbcehnpsvw
+.Op Fl DLPUVbcehknpsvw
 .Op Fl R Op Fl X Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm zfs
 .Cm send
-.Op Fl DLPUVcensvw
+.Op Fl DLPUVceknsvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm zfs
 .Cm send
 .Fl -redact Ar redaction_bookmark
-.Op Fl DLPVcenpv
+.Op Fl DLPVceknpv
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar snapshot
 .Nm zfs
@@ -65,7 +65,7 @@
 .It Xo
 .Nm zfs
 .Cm send
-.Op Fl DLPUVbcehnpsvw
+.Op Fl DLPUVbcehknpsvw
 .Op Fl R Op Fl X Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
@@ -258,6 +258,32 @@ Generate a stream package that includes any snapshot holds (created with the
 command), and indicating to
 .Nm zfs Cm receive
 that the holds be applied to the dataset on the receiving system.
+.It Fl k , -clone-refs
+Send a block that block cloning shares between files once, and send
+every later occurrence within the same snapshot as a reference to the
+first.
+On an incremental send a shared block that the from-snapshot already
+holds is sent as a reference into that snapshot.
+The receiver installs each reference through the block reference
+table, so the sharing survives the transfer instead of being expanded
+into copies.
+The receiving system must have the
+.Sy block_cloning
+pool feature enabled, and a receiver that does not understand the
+stream rejects it.
+Only level-0 data blocks of files and volumes are referenced.
+Sharing with other datasets is not described; those blocks are sent as
+data.
+This flag has no effect on a raw send of an encrypted dataset, on a
+resumed send, or when the
+.Sy block_cloning
+feature is not active on the sending pool.
+The receiver may need to wait for a transaction group to sync before
+it can resolve a reference to a block written earlier in the same
+stream.
+This flag is not the deduplicated stream of the removed
+.Fl D
+option and does not depend on the deduplication table.
 .It Fl i Ar snapshot
 Generate an incremental stream from the first
 .Ar snapshot
@@ -496,7 +522,7 @@ regardless of
 .Nm zfs
 .Cm send
 .Fl -redact Ar redaction_bookmark
-.Op Fl DLPVcenpv
+.Op Fl DLPVceknpv
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar snapshot
 .Xc

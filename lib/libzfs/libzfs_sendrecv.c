@@ -750,7 +750,7 @@ typedef struct send_dump_data {
 	uint64_t prevsnap_obj;
 	boolean_t seenfrom, seento, replicate, doall, fromorigin;
 	boolean_t dryrun, parsable, progress, embed_data, std_out;
-	boolean_t large_block, compress, raw, holds;
+	boolean_t large_block, compress, raw, holds, clone_refs;
 	boolean_t progressastitle;
 	int outfd;
 	boolean_t err;
@@ -1190,6 +1190,8 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 		flags |= LZC_SEND_FLAG_COMPRESS;
 	if (sdd->raw)
 		flags |= LZC_SEND_FLAG_RAW;
+	if (sdd->clone_refs)
+		flags |= LZC_SEND_FLAG_CLONES;
 
 	if (!sdd->doall && !isfromsnap && !istosnap) {
 		if (sdd->replicate) {
@@ -1612,6 +1614,8 @@ lzc_flags_from_sendflags(const sendflags_t *flags)
 		lzc_flags |= LZC_SEND_FLAG_RAW;
 	if (flags->saved)
 		lzc_flags |= LZC_SEND_FLAG_SAVED;
+	if (flags->clone_refs)
+		lzc_flags |= LZC_SEND_FLAG_CLONES;
 
 	return (lzc_flags);
 }
@@ -2424,6 +2428,7 @@ zfs_send_cb_impl(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	sdd.compress = flags->compress;
 	sdd.raw = flags->raw;
 	sdd.holds = flags->holds;
+	sdd.clone_refs = flags->clone_refs;
 	sdd.filter_cb = filter_func;
 	sdd.filter_cb_arg = cb_arg;
 	if (debugnvp)
@@ -4160,6 +4165,7 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 		case DRR_WRITE_BYREF:
 		case DRR_FREEOBJECTS:
 		case DRR_FREE:
+		case DRR_CLONE:
 			break;
 
 		default:

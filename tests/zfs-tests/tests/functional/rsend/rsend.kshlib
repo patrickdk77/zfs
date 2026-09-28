@@ -725,6 +725,7 @@ function stream_has_features
 	feature[redacted]="200000"
 	feature[compressed]="400000"
 	feature[longname]="10000000"
+	feature[clones]="40000000"
 
 	typeset flag known derived=0
 	for flag in "$@"; do
@@ -824,4 +825,21 @@ function recursive_cksum
 		    \; | sort -k 2 | awk '{ print $1 }' | xxh128digest
 		;;
 	esac
+}
+
+#
+# Print the number of DRR_CLONE records in a stream file.
+#
+function stream_clone_records
+{
+	zstream dump $1 | awk '/Total DRR_CLONE records/ {print $5}'
+}
+
+#
+# Rewrite a stream with send_clone_refs_rewrite.py: MODE IN OUT.
+#
+function stream_rewrite
+{
+	typeset dir=$STF_SUITE/tests/functional/rsend
+	python3 $dir/send_clone_refs_rewrite.py "$@"
 }
