@@ -42,6 +42,10 @@ typeset -r CDS_SKIP_DIFFERS=20
 typeset -r CDS_SKIP_BUSY=21
 typeset -r CDS_SKIP_POLICY=22
 typeset -r CDS_ERRORS=23
+typeset -r CDS_FILTER_SLOTS=24
+typeset -r CDS_PLANNED_ENTRIES=25
+typeset -r CDS_FILTER_SEEN=26
+typeset -r CDS_KEEP_PCT=27
 
 # dsl_scan_state_t values
 typeset -r DSS_SCANNING=1

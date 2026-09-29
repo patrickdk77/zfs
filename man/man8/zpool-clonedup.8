@@ -51,10 +51,15 @@ pool property
 .Pq see Xr zpoolprops 7 ,
 and the counts the next run uses to size its index.
 .Pp
-A run has three phases.
+A run has three phases, and a counting pass may come before them.
 First it walks the pool's block pointers the way a scrub does, without
 reading any file data, and indexes in memory the blocks written since the
 last completed run.
+When
+.Sy zfs_clonedup_index_filter
+allows it, a counting pass walks the same block pointers first and notes how
+often each checksum occurs, so that the index leaves out every block whose
+checksum occurs once.
 Then it walks the block pointers again and looks up every older block in
 that index, which matches new data against everything already in the pool.
 Finally a background apply thread reads both blocks of each match, compares

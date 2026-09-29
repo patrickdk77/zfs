@@ -80,6 +80,27 @@ static int zfs_clonedup_scan_weak_checksums = 1;
 /* Debug: drop the index at the apply phase instead of cloning. */
 static int zfs_clonedup_scan_noapply = 0;
 
+/*
+ * Counting pre-pass on a run with no match walk: 0 off, 1 on, 2
+ * decide from the previous run, see dsl_clonedup_filter_wanted().
+ */
+static uint_t zfs_clonedup_index_filter = 2;
+
+/* Filter slots as a power of two; 0 derives from the block count. */
+static uint_t zfs_clonedup_index_filter_shift = 0;
+
+/*
+ * Percent of blocks expected to share a key with another block.  0
+ * takes the figure the previous run measured.  Set it for a first run
+ * on a pool whose duplication is already known.
+ */
+static uint_t zfs_clonedup_index_dup_pct = 0;
+
+/* Slots per block the derived filter size aims for. */
+#define	DCL_FILTER_SLOTS_PER_BLOCK	16
+#define	DCL_FILTER_MIN_SHIFT		16
+#define	DCL_FILTER_MAX_SHIFT		40
+
 #define	DCL_MIN_MEM		(64ULL << 20)
 #define	DCL_MAX_PARTITION_SHIFT	32
 
@@ -234,6 +255,7 @@ static const char *const dsl_clonedup_kstat_names[DCK_NUM] = {
 	"yields", "yield_waits", "index_walks", "match_walks",
 	"dst_mounted", "dst_zvol", "dst_owned", "batches",
 	"key_collisions", "cksum_collisions", "copies_mismatch",
+	"count_walks", "filter_dropped",
 };
 
 #define	DCL_BUMP(dcl, id, n)	wmsum_add(&(dcl)->dcl_wsums[id], (n))
@@ -307,6 +329,7 @@ dsl_clonedup_init(dsl_pool_t *dp)
 }
 
 static void dsl_clonedup_index_destroy(dsl_clonedup_t *dcl);
+static void dsl_clonedup_filter_destroy(dsl_clonedup_t *dcl);
 
 void
 dsl_clonedup_fini(dsl_pool_t *dp)
@@ -316,6 +339,9 @@ dsl_clonedup_fini(dsl_pool_t *dp)
 	if (dcl == NULL)
 		return;
 	dsl_clonedup_index_destroy(dcl);
+	mutex_enter(&dcl->dcl_lock);
+	dsl_clonedup_filter_destroy(dcl);
+	mutex_exit(&dcl->dcl_lock);
 	dsl_clonedup_kstat_destroy(dcl);
 	cv_destroy(&dcl->dcl_apply_cv);
 	cv_destroy(&dcl->dcl_yield_cv);
@@ -392,6 +418,144 @@ dsl_clonedup_mem_max(dsl_clonedup_t *dcl)
 		max = MAX(max, DCL_MIN_MEM);
 	}
 	return (max);
+}
+
+/*
+ * The counting filter.  Two bits a slot, four slots a byte.
+ */
+static uint64_t
+dsl_clonedup_filter_slot(dsl_clonedup_filter_t *f, uint64_t key)
+{
+	return (key & (f->dcf_slots - 1));
+}
+
+static uint_t
+dsl_clonedup_filter_get(dsl_clonedup_filter_t *f, uint64_t key)
+{
+	uint64_t slot = dsl_clonedup_filter_slot(f, key);
+	uint_t shift = (slot & 3) * 2;
+
+	return ((f->dcf_bits[slot >> 2] >> shift) & 3);
+}
+
+/*
+ * Count one sighting of a key, saturating at two.  dcf_once and
+ * dcf_extra together give the number of entries phase one will store.
+ */
+static void
+dsl_clonedup_filter_bump(dsl_clonedup_filter_t *f, uint64_t key)
+{
+	uint64_t slot = dsl_clonedup_filter_slot(f, key);
+	uint_t shift = (slot & 3) * 2;
+	uint8_t *b = &f->dcf_bits[slot >> 2];
+	uint_t v = (*b >> shift) & 3;
+
+	f->dcf_seen++;
+	if (v >= 2) {
+		f->dcf_extra++;
+		return;
+	}
+	if (v == 1)
+		f->dcf_once++;
+	*b = (*b & ~(3 << shift)) | ((v + 1) << shift);
+}
+
+static boolean_t
+dsl_clonedup_filter_repeats(dsl_clonedup_filter_t *f, uint64_t key)
+{
+	return (dsl_clonedup_filter_get(f, key) >= 2);
+}
+
+static uint64_t
+dsl_clonedup_filter_entries(dsl_clonedup_filter_t *f)
+{
+	return (2 * f->dcf_once + f->dcf_extra);
+}
+
+/*
+ * Assumed block size for the filter's block estimate when no previous
+ * run measured the count.  It is small so the estimate errs high: an
+ * undersized filter shares its slots among more keys and declines
+ * less.
+ */
+#define	DCL_FILTER_EST_BLKSZ	(32ULL << 10)
+
+static uint64_t
+dsl_clonedup_blocks_estimate(dsl_clonedup_t *dcl)
+{
+	spa_t *spa = dcl->dcl_dp->dp_spa;
+	uint64_t alloc;
+
+	alloc = metaslab_class_get_alloc(spa_normal_class(spa));
+	alloc += metaslab_class_get_alloc(spa_special_class(spa));
+	alloc += metaslab_class_get_alloc(spa_dedup_class(spa));
+	return (alloc / DCL_FILTER_EST_BLKSZ);
+}
+
+/*
+ * Size the filter for nblocks keys, then hold it to what the index
+ * may use, halving it until it fits.  Only when the smallest
+ * filter does not fit does the run go without one.
+ */
+static dsl_clonedup_filter_t *
+dsl_clonedup_filter_create(dsl_clonedup_t *dcl, uint64_t nblocks)
+{
+	dsl_clonedup_filter_t *f;
+	uint_t shift = zfs_clonedup_index_filter_shift;
+	uint64_t want, bytes;
+
+	if (nblocks == 0)
+		nblocks = dsl_clonedup_blocks_estimate(dcl);
+	if (shift == 0) {
+		want = nblocks * DCL_FILTER_SLOTS_PER_BLOCK;
+		for (shift = DCL_FILTER_MIN_SHIFT;
+		    shift < DCL_FILTER_MAX_SHIFT; shift++) {
+			if ((1ULL << shift) >= want)
+				break;
+		}
+	}
+	shift = MIN(MAX(shift, DCL_FILTER_MIN_SHIFT),
+	    DCL_FILTER_MAX_SHIFT);
+	bytes = (1ULL << shift) / 4;
+	while (shift > DCL_FILTER_MIN_SHIFT &&
+	    bytes > dsl_clonedup_mem_max(dcl)) {
+		shift--;
+		bytes = (1ULL << shift) / 4;
+	}
+	if (bytes > dsl_clonedup_mem_max(dcl))
+		return (NULL);
+
+	/*
+	 * KM_NOSLEEP: this is one allocation of up to the whole index
+	 * budget, and the filter is optional.  A run without one is
+	 * correct and only indexes more.
+	 */
+	f = kmem_zalloc(sizeof (*f), KM_SLEEP);
+	f->dcf_bits = vmem_zalloc(bytes, KM_NOSLEEP);
+	if (f->dcf_bits == NULL) {
+		kmem_free(f, sizeof (*f));
+		zfs_dbgmsg("clonedup: %s: no %llu bytes for the "
+		    "counting filter, running without one",
+		    spa_name(dcl->dcl_dp->dp_spa),
+		    (u_longlong_t)bytes);
+		return (NULL);
+	}
+	f->dcf_slots = 1ULL << shift;
+	f->dcf_bytes = bytes;
+	return (f);
+}
+
+static void
+dsl_clonedup_filter_destroy(dsl_clonedup_t *dcl)
+{
+	dsl_clonedup_filter_t *f = dcl->dcl_filter;
+
+	ASSERT(MUTEX_HELD(&dcl->dcl_lock));
+	if (f == NULL)
+		return;
+	vmem_free(f->dcf_bits, f->dcf_bytes);
+	kmem_free(f, sizeof (*f));
+	dcl->dcl_filter = NULL;
 }
 
 static void
@@ -624,6 +788,13 @@ dsl_clonedup_insert(dsl_clonedup_t *dcl, const blkptr_t *bp,
 	if (dsl_clonedup_partition_of(probe.dce_key,
 	    p->dclp_partition_shift) != p->dclp_partition)
 		return;
+	/* A key the counting pass saw only once has no partner. */
+	if (dcl->dcl_filter != NULL &&
+	    !dsl_clonedup_filter_repeats(dcl->dcl_filter,
+	    probe.dce_key)) {
+		DCL_BUMP(dcl, DCK_FILTER_DROPPED, 1);
+		return;
+	}
 	if (avl_find(&dcl->dcl_index, &probe, &where) != NULL)
 		return;
 
@@ -693,8 +864,17 @@ dsl_clonedup_visit(dsl_clonedup_t *dcl, const blkptr_t *bp,
 
 	mutex_enter(&dcl->dcl_lock);
 	p->dclp_blocks_examined++;
-	if (dcl->dcl_index_active) {
+	if (dcl->dcl_index_active ||
+	    (p->dclp_phase == POOL_CLONEDUP_COUNT &&
+	    dcl->dcl_filter != NULL)) {
 		switch (p->dclp_phase) {
+		case POOL_CLONEDUP_COUNT:
+			if (birth > p->dclp_min_txg) {
+				dsl_clonedup_filter_bump(
+				    dcl->dcl_filter,
+				    dsl_clonedup_bp_key(bp));
+			}
+			break;
 		case POOL_CLONEDUP_INDEX:
 			if (birth > p->dclp_min_txg)
 				dsl_clonedup_insert(dcl, bp, zb, dnp,
@@ -713,12 +893,88 @@ dsl_clonedup_visit(dsl_clonedup_t *dcl, const blkptr_t *bp,
 }
 
 /*
+ * Planning.  The partition count and whether to take a counting pass
+ * are computed from the block and candidate counts the last completed
+ * run saved.  With no last run there are no counts, so in auto mode
+ * the first run goes without a filter, unless
+ * zfs_clonedup_index_dup_pct is set and the block count can be
+ * estimated from the allocated space.
+ *
+ * DCL_FILTER_FP_PCT is the percent of unique keys the filter passes
+ * as repeated: at sixteen slots per block, about six in a hundred.
+ */
+#define	DCL_FILTER_FP_PCT	6
+
+static uint64_t
+dsl_clonedup_parts_for(uint64_t entries, uint64_t max)
+{
+	uint64_t need = entries * sizeof (dsl_clonedup_entry_t);
+	uint64_t parts = 1;
+
+	while (parts < (1ULL << DCL_MAX_PARTITION_SHIFT) &&
+	    need / parts > max)
+		parts <<= 1;
+	return (parts);
+}
+
+/*
+ * Whether this run makes a match walk after the index walk.  A full
+ * or quick run never does, and neither does one whose window opens
+ * at txg 0, because nothing is older than it.  A run that matches
+ * never counts: the counting pass sees only the window, and would
+ * decline a new block whose one partner is older.
+ */
+static boolean_t
+dsl_clonedup_has_match_walk(uint64_t flags, uint64_t min_txg)
+{
+	return (!(flags & (DSF_CLONEDUP_FULL | DSF_CLONEDUP_QUICK)) &&
+	    min_txg != 0);
+}
+
+/*
+ * Decide whether a counting pass pays, counting metadata walks.
+ * Without it the run walks once per partition; with it, once to
+ * count and then once per partition of a smaller index.  A filter
+ * over the cap is shrunk, never split, so the count is one walk.
+ *
+ * keep_pct, the fraction the last run's filter kept, is preferred to
+ * estimating that fraction from dup_pct.  dup_pct comes from the
+ * candidate count, which leaves out duplicates an earlier run already
+ * shared, while the filter still keeps them.
+ */
+static boolean_t
+dsl_clonedup_filter_wanted(dsl_clonedup_t *dcl, uint64_t n,
+    uint64_t dup_pct, uint64_t keep_pct)
+{
+	uint64_t max = dsl_clonedup_mem_max(dcl);
+	uint64_t keep, plain, filtered;
+
+	if (zfs_clonedup_index_filter == 0)
+		return (B_FALSE);
+	if (zfs_clonedup_index_filter == 1)
+		return (B_TRUE);
+	if (n == 0)
+		return (B_FALSE);
+
+	if (keep_pct != 0) {
+		keep = n * keep_pct / 100;
+	} else {
+		keep = n * (dup_pct * 100 +
+		    (100 - dup_pct) * DCL_FILTER_FP_PCT) / 10000;
+	}
+
+	plain = dsl_clonedup_parts_for(n, max);
+	filtered = 1 + dsl_clonedup_parts_for(keep, max);
+	return (filtered < plain);
+}
+
+/*
  * Run and phase control, driven from dsl_scan_sync().
  */
 /*
  * Start a run.  A restart after import keeps the partition being
- * worked and the start time.  Every run keeps dclp_last_txg;
- * everything else starts over.
+ * worked and the start time.  Every run keeps dclp_last_txg and
+ * dclp_keep_pct; everything else starts over.
  */
 void
 dsl_clonedup_run_setup(dsl_clonedup_t *dcl, uint64_t flags,
@@ -731,10 +987,17 @@ dsl_clonedup_run_setup(dsl_clonedup_t *dcl, uint64_t flags,
 	mutex_enter(&dcl->dcl_lock);
 	saved = *p;
 	dsl_clonedup_index_destroy(dcl);
+	dsl_clonedup_filter_destroy(dcl);
 	dcl->dcl_dbg_left = 16;
 	memset(p, 0, sizeof (*p));
 	p->dclp_version = DSL_CLONEDUP_PHYS_VERSION;
 	p->dclp_last_txg = saved.dclp_last_txg;
+	/*
+	 * Carry the measured keep fraction.  A run that declines the
+	 * counting pass measures none, and the next run needs it to
+	 * decline again.
+	 */
+	p->dclp_keep_pct = saved.dclp_keep_pct;
 	if (restart) {
 		p->dclp_partition_shift = saved.dclp_partition_shift;
 		p->dclp_partition = saved.dclp_partition;
@@ -742,8 +1005,6 @@ dsl_clonedup_run_setup(dsl_clonedup_t *dcl, uint64_t flags,
 	}
 	p->dclp_state = DSS_SCANNING;
 	p->dclp_flags = flags;
-	p->dclp_phase = POOL_CLONEDUP_INDEX;
-	DCL_BUMP(dcl, DCK_INDEX_WALKS, 1);
 	p->dclp_min_txg = min_txg;
 	/*
 	 * The finished partitions were walked up to the old bound,
@@ -751,9 +1012,58 @@ dsl_clonedup_run_setup(dsl_clonedup_t *dcl, uint64_t flags,
 	 * after a restart use the scan's own, later one.
 	 */
 	p->dclp_max_txg = restart ? saved.dclp_max_txg : max_txg;
+	p->dclp_phase = POOL_CLONEDUP_INDEX;
+	if (!restart &&
+	    !dsl_clonedup_has_match_walk(flags, min_txg)) {
+		uint64_t n = saved.dclp_blocks_indexed;
+		uint64_t pct = MIN(100, zfs_clonedup_index_dup_pct);
+		uint64_t keep_pct = 0;
+
+		/*
+		 * After a run without a filter, blocks_indexed is the
+		 * unfiltered index size.  After one with a filter it
+		 * is the filtered size, and filter_seen is the
+		 * unfiltered size.  keep_pct persists either way.
+		 */
+		if (saved.dclp_filter_seen != 0)
+			n = saved.dclp_filter_seen;
+		keep_pct = saved.dclp_keep_pct;
+		if (pct != 0) {
+			keep_pct = 0;
+			if (n == 0)
+				n = dsl_clonedup_blocks_estimate(dcl);
+		} else if (keep_pct == 0 && n != 0) {
+			pct = MIN(100,
+			    saved.dclp_candidates * 100 / n);
+		}
+		if (dsl_clonedup_filter_wanted(dcl, n, pct,
+		    keep_pct)) {
+			dcl->dcl_filter =
+			    dsl_clonedup_filter_create(dcl, n);
+		}
+		if (dcl->dcl_filter != NULL) {
+			p->dclp_phase = POOL_CLONEDUP_COUNT;
+			p->dclp_filter_slots =
+			    dcl->dcl_filter->dcf_slots;
+			DCL_BUMP(dcl, DCK_COUNT_WALKS, 1);
+			zfs_dbgmsg("clonedup: %s: counting pass over "
+			    "%llu slots, %llu blocks last run, "
+			    "%llu%% of them paired",
+			    spa_name(dcl->dcl_dp->dp_spa),
+			    (u_longlong_t)dcl->dcl_filter->dcf_slots,
+			    (u_longlong_t)n, (u_longlong_t)pct);
+		}
+	}
+	if (p->dclp_phase == POOL_CLONEDUP_INDEX)
+		DCL_BUMP(dcl, DCK_INDEX_WALKS, 1);
 	if (!restart)
 		p->dclp_start_time = gethrestime_sec();
-	dsl_clonedup_index_create(dcl);
+	/*
+	 * The counting pass has no index.  dsl_clonedup_walk_done()
+	 * creates it when that pass ends.
+	 */
+	if (p->dclp_phase != POOL_CLONEDUP_COUNT)
+		dsl_clonedup_index_create(dcl);
 	mutex_exit(&dcl->dcl_lock);
 	dsl_clonedup_sync_state(dcl, tx);
 }
@@ -766,6 +1076,7 @@ dsl_clonedup_run_done(dsl_clonedup_t *dcl, boolean_t complete,
 	spa_t *spa = dcl->dcl_dp->dp_spa;
 
 	mutex_enter(&dcl->dcl_lock);
+	dsl_clonedup_filter_destroy(dcl);
 	p->dclp_state = complete ? DSS_FINISHED : DSS_CANCELED;
 	p->dclp_end_time = gethrestime_sec();
 	p->dclp_phase = POOL_CLONEDUP_NONE;
@@ -825,13 +1136,52 @@ dsl_clonedup_walk_done(dsl_clonedup_t *dcl, uint64_t *min_txgp,
 
 	mutex_enter(&dcl->dcl_lock);
 	switch (p->dclp_phase) {
+	case POOL_CLONEDUP_COUNT: {
+		dsl_clonedup_filter_t *fl = dcl->dcl_filter;
+		uint64_t entries, parts;
+
+		/*
+		 * An import restarts the run at INDEX, so COUNT is
+		 * only ever reached with its filter.
+		 */
+		ASSERT3P(fl, !=, NULL);
+		entries = dsl_clonedup_filter_entries(fl);
+		parts = dsl_clonedup_parts_for(entries,
+		    dsl_clonedup_mem_max(dcl));
+
+		/*
+		 * The index size is known now, so the partition count
+		 * is planned here and dsl_clonedup_split() should not
+		 * fire for the rest of this run.
+		 */
+		p->dclp_planned_entries = entries;
+		p->dclp_filter_seen = fl->dcf_seen;
+		if (fl->dcf_seen != 0) {
+			p->dclp_keep_pct = MIN(100,
+			    entries * 100 / fl->dcf_seen);
+		}
+		p->dclp_partition_shift = 0;
+		while ((1ULL << p->dclp_partition_shift) < parts)
+			p->dclp_partition_shift++;
+		p->dclp_partition = 0;
+		zfs_dbgmsg("clonedup: %s: counted %llu blocks, %llu "
+		    "will index, planning %llu partition(s)",
+		    spa_name(dcl->dcl_dp->dp_spa),
+		    (u_longlong_t)fl->dcf_seen,
+		    (u_longlong_t)entries, (u_longlong_t)parts);
+		p->dclp_phase = POOL_CLONEDUP_INDEX;
+		DCL_BUMP(dcl, DCK_INDEX_WALKS, 1);
+		dsl_clonedup_index_create(dcl);
+		*min_txgp = p->dclp_min_txg;
+		next = DCLN_WALK;
+		break;
+	}
 	case POOL_CLONEDUP_INDEX:
 		if (dcl->dcl_nentries == 0) {
 			next = dsl_clonedup_partition_done_locked(dcl,
 			    min_txgp);
-		} else if ((p->dclp_flags &
-		    (DSF_CLONEDUP_FULL | DSF_CLONEDUP_QUICK)) ||
-		    p->dclp_min_txg == 0) {
+		} else if (!dsl_clonedup_has_match_walk(p->dclp_flags,
+		    p->dclp_min_txg)) {
 			p->dclp_phase = POOL_CLONEDUP_APPLY;
 			next = DCLN_APPLY;
 		} else {
@@ -3366,6 +3716,16 @@ ZFS_MODULE_PARAM(zfs_clonedup, zfs_clonedup_, scan_weak_checksums,
 
 ZFS_MODULE_PARAM(zfs_clonedup, zfs_clonedup_, scan_noapply, INT,
 	ZMOD_RW, "Debug: drop the clonedup index instead of cloning");
+
+ZFS_MODULE_PARAM(zfs_clonedup, zfs_clonedup_, index_filter, UINT,
+	ZMOD_RW, "Clonedup counting pre-pass: 0 off, 1 on, 2 auto");
+
+ZFS_MODULE_PARAM(zfs_clonedup, zfs_clonedup_, index_filter_shift,
+	UINT, ZMOD_RW, "Clonedup filter slots as a power of two");
+
+ZFS_MODULE_PARAM(zfs_clonedup, zfs_clonedup_, index_dup_pct, UINT,
+	ZMOD_RW,
+	"Percent of blocks expected to share a key, 0 measures");
 
 ZFS_MODULE_PARAM(zfs_clonedup, zfs_clonedup_, apply_enabled, INT,
 	ZMOD_RW, "Run the clonedup apply thread");
