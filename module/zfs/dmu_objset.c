@@ -49,6 +49,7 @@
 #include <sys/sa.h>
 #include <sys/zfs_onexit.h>
 #include <sys/dsl_destroy.h>
+#include <sys/dsl_clonedup.h>
 #include <sys/vdev.h>
 #include <sys/zfeature.h>
 #include <sys/policy.h>
@@ -810,17 +811,29 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
 	int err;
+	boolean_t yielded = B_FALSE;
 	ds_hold_flags_t flags;
 
 	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
-	err = dsl_pool_hold(name, FTAG, &dp);
-	if (err != 0)
-		return (err);
-	err = dsl_dataset_own(dp, name, flags, tag, &ds);
-	if (err != 0) {
+	for (;;) {
+		err = dsl_pool_hold(name, FTAG, &dp);
+		if (err != 0)
+			return (err);
+		err = dsl_dataset_own(dp, name, flags, tag, &ds);
+		if (err == 0)
+			break;
 		dsl_pool_rele(dp, FTAG);
-		return (err);
+		if (err != EBUSY || yielded) {
+			if (yielded)
+				dsl_clonedup_yield_end_name(name);
+			return (err);
+		}
+		/* the clonedup apply thread may be the owner */
+		dsl_clonedup_yield_begin_name(name);
+		yielded = B_TRUE;
 	}
+	if (yielded)
+		dsl_clonedup_yield_end_name(name);
 	err = dmu_objset_own_impl(ds, type, readonly, decrypt, tag, osp);
 	if (err != 0) {
 		dsl_dataset_disown(ds, flags, tag);

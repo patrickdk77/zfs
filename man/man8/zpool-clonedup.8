@@ -1,0 +1,260 @@
+.\" SPDX-License-Identifier: CDDL-1.0
+.\"
+.\" This file and its contents are supplied under the terms of the
+.\" Common Development and Distribution License ("CDDL"), version 1.0.
+.\" You may only use this file in accordance with the terms of version
+.\" 1.0 of the CDDL.
+.\"
+.\" A full copy of the text of the CDDL should have accompanied this
+.\" source.  A copy of the CDDL is also available via the Internet at
+.\" https://opensource.org/license/CDDL-1.0.
+.\"
+.\" Copyright (c) 2026, Patrick Domack. All rights reserved.
+.\"
+.Dd September 27, 2026
+.Dt ZPOOL-CLONEDUP 8
+.Os
+.
+.Sh NAME
+.Nm zpool-clonedup
+.Nd deduplicate a pool after the fact with block cloning
+.Sh SYNOPSIS
+.Nm zpool
+.Cm clonedup
+.Op Fl w
+.Op Fl f Ns | Ns Fl q
+.Op Fl n
+.Fl a Ns | Ns Ar pool Ns ...
+.Nm zpool
+.Cm clonedup
+.Fl p
+.Fl a Ns | Ns Ar pool Ns ...
+.Nm zpool
+.Cm clonedup
+.Fl s
+.Fl a Ns | Ns Ar pool Ns ...
+.
+.Sh DESCRIPTION
+Finds blocks with identical content and makes them share one copy through
+block cloning, the mechanism behind
+.Fn copy_file_range 2
+and the
+.Sy block_cloning
+feature
+.Pq see Xr zpool-features 7 .
+It keeps no deduplication table, since the Block Reference Table already
+tracks how many files reference a shared block.
+Between runs the pool keeps a small progress record.
+It holds the transaction group the last completed run reached, shown as the
+.Sy last_clonedup_txg
+pool property
+.Pq see Xr zpoolprops 7 ,
+and the counts the next run uses to size its index.
+.Pp
+A run has three phases.
+First it walks the pool's block pointers the way a scrub does, without
+reading any file data, and indexes in memory the blocks written since the
+last completed run.
+Then it walks the block pointers again and looks up every older block in
+that index, which matches new data against everything already in the pool.
+Finally a background apply thread reads both blocks of each match, compares
+them byte for byte, and redirects one onto the other.
+Unless
+.Sy zfs_clonedup_apply_trust_checksum
+is set, a run never clones on a checksum match alone.
+.Pp
+The index may use at most
+.Sy zfs_clonedup_scan_mem_max
+bytes, or by default a share of memory set by
+.Sy zfs_clonedup_scan_mem_lim_fact
+.Pq see Xr zfs 4 .
+When the new data does not fit, the run splits the checksum space into
+partitions and repeats the phases for each one, so memory use never exceeds
+the cap.
+.Pp
+The run picks the surviving copy so that space is actually freed.
+A block held by a snapshot cannot be freed, so it survives and the run
+redirects the other copies onto it.
+When snapshots hold every copy, the run still redirects the live file's
+block so later snapshots share it.
+The space returns when the old snapshots are destroyed.
+The run prefers a block already shared by an earlier clone as the surviving
+copy, because redirecting onto it adds no new reference table entry.
+All-zero blocks become holes instead of clones.
+.Pp
+The walks share a scrub's scan code and limits:
+.Sy zfs_scrub_min_time_ms
+per transaction group and the scrub I/O priority on every device.
+The verify reads also use the scrub priority and are not cached, and the
+same in-flight byte budget that limits a scrub's reads limits them.
+The kstat
+.Pa zfs/ Ns Ar pool Ns Pa /clonedup
+exports the run's counters, among them the blocks read to verify a match
+and the number of times the apply thread stepped aside for an
+administrative operation.
+.Pp
+A run never touches:
+.Bl -bullet -compact
+.It
+Snapshots, whose blocks serve as the surviving copy only.
+.It
+Encrypted datasets.
+.It
+Blocks written with
+.Sy dedup Ns = Ns Sy on ,
+which the deduplication table already shares.
+.It
+Blocks whose datasets have
+.Sy clonedup Ns = Ns Sy off ,
+and the files of datasets with
+.Sy clonedup Ns = Ns Sy source ,
+which can only be the surviving copy.
+See
+.Xr zfsprops 7 .
+.It
+Datasets in the middle of a
+.Nm zfs Cm receive ,
+and blocks on a device that is being removed.
+.El
+.Pp
+Two copies of the same data stored with different compression settings have
+different checksums, so a run does not find them.
+In mounted filesystems and open volumes, the run rewrites blocks under the
+object's range lock.
+The apply thread owns an unmounted filesystem or a closed volume while it
+writes to it, the way a mount or a volume open owns a dataset.
+An operation that needs a dataset the thread holds, such as
+.Nm zfs Cm destroy ,
+.Nm zfs Cm promote ,
+.Nm zfs Cm rollback ,
+.Nm zfs Cm receive ,
+.Nm zfs Cm mount
+or opening a volume, asks the thread to let go and waits at most
+.Sy zfs_clonedup_yield_timeout_ms
+for it.
+After letting go, the thread holds nothing until the operation has
+completed.
+.Pp
+Redirecting a block gives it a new logical birth time.
+For an incremental
+.Nm zfs Cm send ,
+redirecting a block written since the last snapshot adds nothing to the
+stream, which carries that block anyway.
+Redirecting a block that an earlier snapshot already holds makes the stream
+carry it again.
+To avoid that, run
+.Nm zpool Cm clonedup
+before taking the snapshot that will be sent, or set
+.Sy clonedup Ns = Ns Sy source
+on replicated datasets.
+A redirected block also counts as a change to its dataset since the last
+snapshot, so an incremental receive into that dataset needs
+.Fl F .
+Set
+.Sy clonedup Ns = Ns Sy source
+or
+.Sy off
+on datasets that receive incremental streams to avoid this.
+.Pp
+Only one scan runs at a time.
+A scrub or resilver request cancels a running clonedup.
+The next run repeats the canceled work, since
+.Sy last_clonedup_txg
+advances only when a run completes.
+Among clonedup runs, a full run
+.Pq Fl f
+replaces a running quick
+.Pq Fl q
+or default run, and a default run replaces a quick one.
+A request of equal or lower rank fails with EBUSY.
+.Pp
+A run needs the
+.Sy clonedup
+and
+.Sy block_cloning
+features enabled, and
+.Sy zfs_bclone_enabled
+must not be zero.
+Of the two features, a dry run needs only
+.Sy block_cloning .
+The
+.Sy clonedup
+feature is active only while a run is in progress.
+After an export or a crash, a run begins its current partition again, and
+the counts it reports from then on cover only the partitions after the
+restart.
+.Pp
+On a pool that only receives streams, every block is held by a snapshot.
+A run there redirects the head's copy of each duplicate and reports the
+space as held by snapshots, which changes every dataset since its last
+snapshot: the next incremental receive needs
+.Fl F ,
+and its rollback discards the redirects.
+.Bl -tag -width "-a"
+.It Fl a
+Run on all pools.
+.It Fl f
+Index every block instead of only those written since the last completed
+run, and skip the matching walk.
+Only a full run finds duplicates among data that existed before the last
+run.
+.It Fl n
+Dry run.
+Perform every phase but clone nothing, and report what a real run would have
+saved.
+A dry run leaves no record in the pool: no scan state, no history entry and
+no feature activation.
+It exists only in memory, so an export or a reboot ends it, and
+.Nm zpool Cm status
+then reports nothing about it.
+It does not advance
+.Sy last_clonedup_txg .
+.It Fl p
+Pause a running clonedup.
+To resume it, run
+.Nm zpool Cm clonedup
+again with the
+.Fl f ,
+.Fl q
+and
+.Fl n
+flags it was started with.
+A request with other flags is ranked against the paused run as described
+above.
+.It Fl q
+Quick.
+Index the new blocks and clone duplicates among them only, without matching
+them against older data.
+A quick run does not advance
+.Sy last_clonedup_txg ,
+so the next run without this flag matches the same blocks against older
+data.
+.It Fl s
+Stop a running clonedup.
+.It Fl w
+Wait until the run has completed before returning.
+.El
+.Pp
+.Xr zpool-status 8
+shows progress and results, and
+.Xr zpool-wait 8
+can wait for the
+.Sy clonedup
+activity.
+.
+.Sh EXAMPLES
+.Ss Example 1 : No Deduplicating data written since the last run
+.Dl # Nm zpool Cm clonedup Fl w Ar tank
+.
+.Ss Example 2 : No Estimating the space a full run would reclaim
+.Dl # Nm zpool Cm clonedup Fl f Fl n Fl w Ar tank
+.Dl # Nm zpool Cm status Ar tank
+.
+.Sh SEE ALSO
+.Xr zfs 4 ,
+.Xr zfsprops 7 ,
+.Xr zpool-features 7 ,
+.Xr zpoolprops 7 ,
+.Xr zpool-scrub 8 ,
+.Xr zpool-status 8 ,
+.Xr zpool-wait 8

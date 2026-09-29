@@ -20,6 +20,7 @@
 #include <sys/zfs_vnops_os.h>
 
 extern int zfs_bclone_enabled;
+extern int zfs_bclone_strict_properties;
 
 extern int zfs_fsync(znode_t *, int, cred_t *);
 extern int zfs_read(znode_t *, zfs_uio_t *, int, cred_t *);

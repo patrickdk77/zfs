@@ -20,6 +20,7 @@
  */
 
 #include <sys/dsl_scan.h>
+#include <sys/dsl_clonedup.h>
 #include <sys/dsl_pool.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_prop.h>
@@ -105,9 +106,17 @@
  */
 
 typedef int (scan_cb_t)(dsl_pool_t *, const blkptr_t *,
-    const zbookmark_phys_t *);
+    const zbookmark_phys_t *, const dnode_phys_t *, dsl_dataset_t *);
 
 static scan_cb_t dsl_scan_scrub_cb;
+static scan_cb_t dsl_scan_clonedup_cb;
+static void dsl_scan_done(dsl_scan_t *scn, boolean_t complete,
+    dmu_tx_t *tx);
+static int dsl_scan_clonedup_rank(uint64_t flags);
+static void dsl_scan_clonedup_walk_done(dsl_scan_t *scn,
+    dmu_tx_t *tx);
+static void dsl_scan_clonedup_apply_check(dsl_scan_t *scn,
+    dmu_tx_t *tx);
 
 static int scan_ds_queue_compare(const void *a, const void *b);
 static int scan_prefetch_queue_compare(const void *a, const void *b);
@@ -230,6 +239,16 @@ static uint_t zfs_import_defer_txgs = 5;
 #define	DSL_SCAN_IS_RESILVER(scn) \
 	((scn)->scn_phys.scn_func == POOL_SCAN_RESILVER)
 
+#define	DSL_SCAN_IS_CLONEDUP(scn) \
+	((scn)->scn_phys.scn_func == POOL_SCAN_CLONEDUP)
+
+#define	DSL_SCAN_IS_DRYRUN(scn) \
+	(DSL_SCAN_IS_CLONEDUP(scn) && \
+	((scn)->scn_phys.scn_flags & DSF_CLONEDUP_DRYRUN) != 0)
+
+#define	DSL_CLONEDUP_MODE_FLAGS \
+	(DSF_CLONEDUP_FULL | DSF_CLONEDUP_QUICK | DSF_CLONEDUP_DRYRUN)
+
 /*
  * Enable/disable the processing of the free_bpobj object.
  */
@@ -243,6 +262,8 @@ static scan_cb_t *scan_funcs[POOL_SCAN_FUNCS] = {
 	NULL,
 	dsl_scan_scrub_cb,	/* POOL_SCAN_SCRUB */
 	dsl_scan_scrub_cb,	/* POOL_SCAN_RESILVER */
+	NULL,			/* POOL_SCAN_ERRORSCRUB */
+	dsl_scan_clonedup_cb,	/* POOL_SCAN_CLONEDUP */
 };
 
 /* In core node for the scn->scn_queue. Represents a dataset to be scanned */
@@ -713,7 +734,43 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 		}
 	}
 
+	if (dsl_scan_clonedup_scanning(dp)) {
+		/*
+		 * The in-memory index does not survive an export, so
+		 * the run restarts its current partition from the
+		 * first phase.
+		 */
+		scn->scn_restart_txg = txg;
+		scn->scn_clonedup_restart = B_TRUE;
+		zfs_dbgmsg("clonedup on %s restarts in txg %llu",
+		    spa->spa_name, (longlong_t)txg);
+	}
+
 	memcpy(&scn->scn_phys_cached, &scn->scn_phys, sizeof (scn->scn_phys));
+
+	/*
+	 * The saved object id is only as good as the record holding
+	 * it.  Walking whatever else now lives at that id would be
+	 * worse than starting the queue empty, so check the type
+	 * first.
+	 */
+	if (scn->scn_phys.scn_queue_obj != 0) {
+		dmu_object_info_t doi;
+		dmu_object_type_t ot = spa_version(spa) <
+		    SPA_VERSION_DSL_SCRUB ? DMU_OT_ZAP_OTHER :
+		    DMU_OT_SCAN_QUEUE;
+
+		if (dmu_object_info(dp->dp_meta_objset,
+		    scn->scn_phys.scn_queue_obj, &doi) != 0 ||
+		    doi.doi_type != ot) {
+			zfs_dbgmsg("scan queue object %llu on %s "
+			    "is not a scan queue: ignoring it",
+			    (u_longlong_t)scn->scn_phys.scn_queue_obj,
+			    spa->spa_name);
+			scn->scn_phys.scn_queue_obj = 0;
+			scn->scn_phys_cached.scn_queue_obj = 0;
+		}
+	}
 
 	/* reload the queue into the in-core state */
 	if (scn->scn_phys.scn_queue_obj != 0) {
@@ -732,7 +789,8 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 		zap_attribute_free(za);
 	}
 
-	ddt_walk_init(spa, scn->scn_phys.scn_max_txg);
+	if (!DSL_SCAN_IS_CLONEDUP(scn))
+		ddt_walk_init(spa, scn->scn_phys.scn_max_txg);
 
 	spa_scan_stat_init(spa);
 	vdev_scan_stat_init(spa->spa_root_vdev);
@@ -784,6 +842,15 @@ dsl_scan_scrubbing(const dsl_pool_t *dp)
 }
 
 boolean_t
+dsl_scan_clonedup_scanning(const dsl_pool_t *dp)
+{
+	dsl_scan_phys_t *scn_phys = &dp->dp_scan->scn_phys;
+
+	return (scn_phys->scn_state == DSS_SCANNING &&
+	    scn_phys->scn_func == POOL_SCAN_CLONEDUP);
+}
+
+boolean_t
 dsl_errorscrubbing(const dsl_pool_t *dp)
 {
 	dsl_errorscrub_phys_t *errorscrub_phys = &dp->dp_scan->errorscrub_phys;
@@ -802,7 +869,8 @@ dsl_errorscrub_is_paused(const dsl_scan_t *scn)
 boolean_t
 dsl_scan_is_paused_scrub(const dsl_scan_t *scn)
 {
-	return (dsl_scan_scrubbing(scn->scn_dp) &&
+	return ((dsl_scan_scrubbing(scn->scn_dp) ||
+	    dsl_scan_clonedup_scanning(scn->scn_dp)) &&
 	    scn->scn_phys.scn_flags & DSF_SCRUB_PAUSED);
 }
 
@@ -904,6 +972,15 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 	spa_t *spa = scn->scn_dp->dp_spa;
 
 	ASSERT(sync_type != SYNC_MANDATORY || scn->scn_queues_pending == 0);
+
+	if (DSL_SCAN_IS_DRYRUN(scn)) {
+		memcpy(&scn->scn_phys_cached, &scn->scn_phys,
+		    sizeof (scn->scn_phys));
+		scn->scn_checkpointing = B_FALSE;
+		scn->scn_last_checkpoint = ddi_get_lbolt();
+		return;
+	}
+
 	if (scn->scn_queues_pending == 0) {
 		for (i = 0; i < spa->spa_root_vdev->vdev_children; i++) {
 			vdev_t *vd = spa->spa_root_vdev->vdev_child[i];
@@ -947,11 +1024,15 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 int
 dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 {
-	(void) arg;
+	/* arg is a setup_sync_arg_t, maybe passed as &arg->func */
+	setup_sync_arg_t *ssa = arg;
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
 	vdev_t *rvd = scn->scn_dp->dp_spa->spa_root_vdev;
 
-	if (dsl_scan_is_running(scn) || vdev_rebuild_active(rvd) ||
+	if (dsl_scan_is_running(scn) &&
+	    !(ssa->replace && DSL_SCAN_IS_CLONEDUP(scn)))
+		return (SET_ERROR(EBUSY));
+	if (vdev_rebuild_active(rvd) ||
 	    dsl_errorscrubbing(scn->scn_dp))
 		return (SET_ERROR(EBUSY));
 
@@ -966,18 +1047,30 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	dmu_object_type_t ot = 0;
 	dsl_pool_t *dp = scn->scn_dp;
 	spa_t *spa = dp->dp_spa;
+	boolean_t dryrun =
+	    setup_sync_arg->func == POOL_SCAN_CLONEDUP &&
+	    (setup_sync_arg->flags & DSF_CLONEDUP_DRYRUN) != 0;
 
+	if (dsl_scan_is_running(scn)) {
+		ASSERT(setup_sync_arg->replace);
+		ASSERT(DSL_SCAN_IS_CLONEDUP(scn));
+		dsl_scan_done(scn, B_FALSE, tx);
+		dsl_scan_sync_state(scn, tx, SYNC_MANDATORY);
+	}
 	ASSERT(!dsl_scan_is_running(scn));
 	ASSERT3U(setup_sync_arg->func, >, POOL_SCAN_NONE);
 	ASSERT3U(setup_sync_arg->func, <, POOL_SCAN_FUNCS);
 	memset(&scn->scn_phys, 0, sizeof (scn->scn_phys));
 
-	/*
-	 * If we are starting a fresh scrub, we erase the error scrub
-	 * information from disk.
-	 */
-	memset(&scn->errorscrub_phys, 0, sizeof (scn->errorscrub_phys));
-	dsl_errorscrub_sync_state(scn, tx);
+	if (!dryrun) {
+		/*
+		 * If we are starting a fresh scrub, we erase the
+		 * error scrub information from disk.
+		 */
+		memset(&scn->errorscrub_phys, 0,
+		    sizeof (scn->errorscrub_phys));
+		dsl_errorscrub_sync_state(scn, tx);
+	}
 
 	scn->scn_phys.scn_func = setup_sync_arg->func;
 	scn->scn_phys.scn_flags = setup_sync_arg->flags;
@@ -1044,6 +1137,30 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 		}
 	}
 
+	if (DSL_SCAN_IS_CLONEDUP(scn)) {
+		/*
+		 * Skip the DDT phase: a class max of UNIQUE makes
+		 * ddt_class_contains() drop dedup-bit blocks with no
+		 * lookup, and a class past the end keeps
+		 * dsl_scan_visit() out of the DDT walk.
+		 */
+		scn->scn_phys.scn_ddt_class_max = DDT_CLASS_UNIQUE;
+		scn->scn_phys.scn_ddt_bookmark.ddb_class =
+		    DDT_CLASSES;
+		if (!(scn->scn_phys.scn_flags & DSF_CLONEDUP_FULL))
+			scn->scn_phys.scn_min_txg =
+			    dsl_clonedup_last_txg(dp);
+		scn->scn_clonedup_applying = B_FALSE;
+		dsl_clonedup_run_setup(dp->dp_clonedup,
+		    scn->scn_phys.scn_flags & DSL_CLONEDUP_MODE_FLAGS,
+		    scn->scn_phys.scn_min_txg,
+		    scn->scn_phys.scn_max_txg,
+		    setup_sync_arg->restart, tx);
+		if (!dryrun)
+			spa_feature_incr(spa, SPA_FEATURE_CLONEDUP,
+			    tx);
+	}
+
 	/* back to the generic stuff */
 
 	if (zfs_scan_blkstats) {
@@ -1063,19 +1180,26 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	if (spa_version(spa) < SPA_VERSION_DSL_SCRUB)
 		ot = DMU_OT_ZAP_OTHER;
 
-	scn->scn_phys.scn_queue_obj = zap_create(dp->dp_meta_objset,
-	    ot ? ot : DMU_OT_SCAN_QUEUE, DMU_OT_NONE, 0, tx);
+	if (!dryrun && setup_sync_arg->func != POOL_SCAN_CLONEDUP) {
+		scn->scn_phys.scn_queue_obj =
+		    zap_create(dp->dp_meta_objset,
+		    ot ? ot : DMU_OT_SCAN_QUEUE, DMU_OT_NONE, 0, tx);
+	}
 
 	memcpy(&scn->scn_phys_cached, &scn->scn_phys, sizeof (scn->scn_phys));
 
-	ddt_walk_init(spa, scn->scn_phys.scn_max_txg);
+	if (!DSL_SCAN_IS_CLONEDUP(scn))
+		ddt_walk_init(spa, scn->scn_phys.scn_max_txg);
 
 	dsl_scan_sync_state(scn, tx, SYNC_MANDATORY);
 
-	spa_history_log_internal(spa, "scan setup", tx,
-	    "func=%u mintxg=%llu maxtxg=%llu",
-	    setup_sync_arg->func, (u_longlong_t)scn->scn_phys.scn_min_txg,
-	    (u_longlong_t)scn->scn_phys.scn_max_txg);
+	if (!dryrun) {
+		spa_history_log_internal(spa, "scan setup", tx,
+		    "func=%u mintxg=%llu maxtxg=%llu",
+		    setup_sync_arg->func,
+		    (u_longlong_t)scn->scn_phys.scn_min_txg,
+		    (u_longlong_t)scn->scn_phys.scn_max_txg);
+	}
 }
 
 /*
@@ -1136,7 +1260,34 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 		    &func, 0, ZFS_SPACE_CHECK_RESERVED));
 	}
 
-	if (func == POOL_SCAN_SCRUB && dsl_scan_is_paused_scrub(scn)) {
+	memset(&setup_sync_arg, 0, sizeof (setup_sync_arg));
+	setup_sync_arg.func = func;
+	setup_sync_arg.txgstart = txgstart;
+	setup_sync_arg.txgend = txgend;
+	setup_sync_arg.flags = flags;
+
+	if (func == POOL_SCAN_CLONEDUP &&
+	    dsl_scan_clonedup_scanning(dp)) {
+		uint64_t running = scn->scn_phys.scn_flags &
+		    DSL_CLONEDUP_MODE_FLAGS;
+
+		if (dsl_scan_is_paused_scrub(scn) &&
+		    (flags & DSL_CLONEDUP_MODE_FLAGS) == running) {
+			int err = dsl_scrub_set_pause_resume(dp,
+			    POOL_SCRUB_NORMAL);
+			return (err == 0 ? 0 : SET_ERROR(err));
+		}
+		if (dsl_scan_clonedup_rank(flags) <=
+		    dsl_scan_clonedup_rank(running))
+			return (SET_ERROR(EBUSY));
+		setup_sync_arg.replace = B_TRUE;
+	} else if (func == POOL_SCAN_SCRUB &&
+	    dsl_scan_clonedup_scanning(dp)) {
+		setup_sync_arg.replace = B_TRUE;
+	}
+
+	if (func == POOL_SCAN_SCRUB && dsl_scan_scrubbing(dp) &&
+	    dsl_scan_is_paused_scrub(scn)) {
 		/* got scrub start cmd, resume paused scrub */
 		if ((flags & DSF_SCRUB_THOROUGH) == 0 && flags != 0)
 			return (SET_ERROR(ENOTSUP));
@@ -1156,11 +1307,6 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 		}
 		return (SET_ERROR(err));
 	}
-
-	setup_sync_arg.func = func;
-	setup_sync_arg.txgstart = txgstart;
-	setup_sync_arg.txgend = txgend;
-	setup_sync_arg.flags = flags;
 
 	return (dsl_sync_task(spa_name(spa), dsl_scan_setup_check,
 	    dsl_scan_setup_sync, &setup_sync_arg, 0,
@@ -1211,12 +1357,16 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 
 	dsl_pool_t *dp = scn->scn_dp;
 	spa_t *spa = dp->dp_spa;
+	boolean_t dryrun = DSL_SCAN_IS_DRYRUN(scn);
 	int i;
 
-	/* Remove any remnants of an old-style scrub. */
-	for (i = 0; old_names[i]; i++) {
-		(void) zap_remove(dp->dp_meta_objset,
-		    DMU_POOL_DIRECTORY_OBJECT, old_names[i], tx);
+	if (!dryrun) {
+		/* Remove any remnants of an old-style scrub. */
+		for (i = 0; old_names[i]; i++) {
+			(void) zap_remove(dp->dp_meta_objset,
+			    DMU_POOL_DIRECTORY_OBJECT, old_names[i],
+			    tx);
+		}
 	}
 
 	if (scn->scn_phys.scn_queue_obj != 0) {
@@ -1248,7 +1398,9 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		}
 	}
 
-	if (dsl_scan_restarting(scn, tx)) {
+	if (dryrun) {
+		/* a dry run has nothing to record */
+	} else if (dsl_scan_restarting(scn, tx)) {
 		spa_history_log_internal(spa, "scan aborted, restarting", tx,
 		    "errors=%llu", (u_longlong_t)spa_approx_errlog_size(spa));
 	} else if (!complete) {
@@ -1349,6 +1501,14 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		    DSS_CANCELED;
 		scn->scn_phys.scn_end_time = gethrestime_sec();
 		scn->scn_finished_txg = tx->tx_txg;
+	}
+
+	if (DSL_SCAN_IS_CLONEDUP(scn)) {
+		scn->scn_clonedup_applying = B_FALSE;
+		dsl_clonedup_run_done(dp->dp_clonedup, complete, tx);
+		if (!dryrun)
+			spa_feature_decr(spa, SPA_FEATURE_CLONEDUP,
+			    tx);
 	}
 
 	spa_notify_waiters(spa);
@@ -1489,7 +1649,8 @@ dsl_scrub_pause_resume_check(void *arg, dmu_tx_t *tx)
 
 	if (*cmd == POOL_SCRUB_PAUSE) {
 		/* can't pause a scrub when there is no in-progress scrub */
-		if (!dsl_scan_scrubbing(dp))
+		if (!dsl_scan_scrubbing(dp) &&
+		    !dsl_scan_clonedup_scanning(dp))
 			return (SET_ERROR(ENOENT));
 
 		/* can't pause a paused scrub */
@@ -1666,6 +1827,30 @@ scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx)
 }
 
 /*
+ * How much memory a scan may hold for the blocks it has queued but
+ * not yet issued.  A fraction of RAM, floored, then capped at a
+ * twentieth of what the pool has allocated, because there is no use
+ * reserving more index than the data could ever fill.  Pass 0 for
+ * fact to use zfs_scan_mem_lim_fact.
+ */
+uint64_t
+dsl_scan_mem_lim(spa_t *spa, uint_t fact)
+{
+	uint64_t alloc, lim;
+
+	if (fact == 0)
+		fact = zfs_scan_mem_lim_fact;
+
+	alloc = metaslab_class_get_alloc(spa_normal_class(spa));
+	alloc += metaslab_class_get_alloc(spa_special_class(spa));
+	alloc += metaslab_class_get_alloc(spa_dedup_class(spa));
+
+	lim = MAX((physmem / MAX(1, fact)) * PAGESIZE,
+	    zfs_scan_mem_lim_min);
+	return (MIN(lim, alloc / 20));
+}
+
+/*
  * Computes the memory limit state that we're currently in. A sorted scan
  * needs quite a bit of memory to hold the sorting queue, so we need to
  * reasonably constrain the size so it doesn't impact overall system
@@ -1702,15 +1887,9 @@ dsl_scan_should_clear(dsl_scan_t *scn)
 {
 	spa_t *spa = scn->scn_dp->dp_spa;
 	vdev_t *rvd = scn->scn_dp->dp_spa->spa_root_vdev;
-	uint64_t alloc, mlim_hard, mlim_soft, mused;
+	uint64_t mlim_hard, mlim_soft, mused;
 
-	alloc = metaslab_class_get_alloc(spa_normal_class(spa));
-	alloc += metaslab_class_get_alloc(spa_special_class(spa));
-	alloc += metaslab_class_get_alloc(spa_dedup_class(spa));
-
-	mlim_hard = MAX((physmem / zfs_scan_mem_lim_fact) * PAGESIZE,
-	    zfs_scan_mem_lim_min);
-	mlim_hard = MIN(mlim_hard, alloc / 20);
+	mlim_hard = dsl_scan_mem_lim(spa, 0);
 	mlim_soft = mlim_hard - MIN(mlim_hard / zfs_scan_mem_lim_soft_fact,
 	    zfs_scan_mem_lim_soft_max);
 	mused = 0;
@@ -1796,7 +1975,8 @@ dsl_scan_check_suspend(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 	    NSEC2SEC(sync_time_ns) >= zfs_txg_timeout)) ||
 	    spa_shutting_down(scn->scn_dp->dp_spa) ||
 	    (zfs_scan_strict_mem_lim && dsl_scan_should_clear(scn)) ||
-	    !ddt_walk_ready(scn->scn_dp->dp_spa)) {
+	    (!DSL_SCAN_IS_CLONEDUP(scn) &&
+	    !ddt_walk_ready(scn->scn_dp->dp_spa))) {
 		if (zb && zb->zb_level == ZB_ROOT_LEVEL) {
 			dprintf("suspending at first available bookmark "
 			    "%llx/%llx/%llx/%llx\n",
@@ -1900,7 +2080,8 @@ dsl_scan_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
 	SET_BOOKMARK(&zb, zh->zh_log.blk_cksum.zc_word[ZIL_ZC_OBJSET],
 	    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL, bp->blk_cksum.zc_word[ZIL_ZC_SEQ]);
 
-	VERIFY0(scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb));
+	VERIFY0(scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb,
+	    NULL, NULL));
 	return (0);
 }
 
@@ -1936,7 +2117,8 @@ dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 		    lr->lr_foid, ZB_ZIL_LEVEL,
 		    lr->lr_offset / BP_GET_LSIZE(bp));
 
-		VERIFY0(scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb));
+		VERIFY0(scan_funcs[scn->scn_phys.scn_func](dp, bp,
+		    &zb, NULL, NULL));
 	}
 	return (0);
 }
@@ -2548,7 +2730,7 @@ dsl_scan_visitbp(const blkptr_t *bp, const zbookmark_phys_t *zb,
 		return;
 	}
 
-	scan_funcs[scn->scn_phys.scn_func](dp, bp, zb);
+	scan_funcs[scn->scn_phys.scn_func](dp, bp, zb, dnp, ds);
 }
 
 static void
@@ -2645,8 +2827,10 @@ dsl_scan_ds_destroyed(dsl_dataset_t *ds, dmu_tx_t *tx)
 			    dsl_dataset_phys(ds)->ds_next_snap_obj, mintxg);
 	}
 
-	if (zap_lookup_int_key(dp->dp_meta_objset, scn->scn_phys.scn_queue_obj,
-	    ds->ds_object, &mintxg) == 0) {
+	if (scn->scn_phys.scn_queue_obj != 0 &&
+	    zap_lookup_int_key(dp->dp_meta_objset,
+	    scn->scn_phys.scn_queue_obj, ds->ds_object,
+	    &mintxg) == 0) {
 		ASSERT3U(dsl_dataset_phys(ds)->ds_num_children, <=, 1);
 		VERIFY3U(0, ==, zap_remove_int(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj, ds->ds_object, tx));
@@ -2722,8 +2906,10 @@ dsl_scan_ds_snapshotted(dsl_dataset_t *ds, dmu_tx_t *tx)
 		    dsl_dataset_phys(ds)->ds_prev_snap_obj, mintxg);
 	}
 
-	if (zap_lookup_int_key(dp->dp_meta_objset, scn->scn_phys.scn_queue_obj,
-	    ds->ds_object, &mintxg) == 0) {
+	if (scn->scn_phys.scn_queue_obj != 0 &&
+	    zap_lookup_int_key(dp->dp_meta_objset,
+	    scn->scn_phys.scn_queue_obj, ds->ds_object,
+	    &mintxg) == 0) {
 		VERIFY3U(0, ==, zap_remove_int(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj, ds->ds_object, tx));
 		VERIFY(zap_add_int_key(dp->dp_meta_objset,
@@ -2818,9 +3004,11 @@ dsl_scan_ds_clone_swapped(dsl_dataset_t *ds1, dsl_dataset_t *ds2, dmu_tx_t *tx)
 	 * be different. Therefore we need to apply the swap logic to the
 	 * on-disk state independently of the in-memory state.
 	 */
-	ds1_queued = zap_lookup_int_key(dp->dp_meta_objset,
+	ds1_queued = scn->scn_phys.scn_queue_obj != 0 &&
+	    zap_lookup_int_key(dp->dp_meta_objset,
 	    scn->scn_phys.scn_queue_obj, ds1->ds_object, &mintxg1) == 0;
-	ds2_queued = zap_lookup_int_key(dp->dp_meta_objset,
+	ds2_queued = scn->scn_phys.scn_queue_obj != 0 &&
+	    zap_lookup_int_key(dp->dp_meta_objset,
 	    scn->scn_phys.scn_queue_obj, ds2->ds_object, &mintxg2) == 0;
 
 	/* Sanity checking. */
@@ -2906,6 +3094,14 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 
 	VERIFY3U(0, ==, dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds));
 
+	if (DSL_SCAN_IS_CLONEDUP(scn)) {
+		uint64_t mode = ZFS_CLONEDUP_ON;
+
+		(void) dsl_prop_get_int_ds(ds,
+		    zfs_prop_to_name(ZFS_PROP_CLONEDUP), &mode);
+		scn->scn_clonedup_dsmode = mode;
+	}
+
 	if (scn->scn_phys.scn_cur_min_txg >=
 	    scn->scn_phys.scn_max_txg) {
 		/*
@@ -2966,12 +3162,20 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 	}
 
 	/*
-	 * Iterate over the bps in this ds.
+	 * Iterate over the bps in this ds.  A clonedup run skips a
+	 * dataset the property excludes, rather than reading its
+	 * whole tree for the callback to drop every leaf.  Children
+	 * and snapshots are queued below and read their own
+	 * property.
 	 */
-	dmu_buf_will_dirty(ds->ds_dbuf, tx);
-	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-	dsl_scan_visit_rootbp(scn, ds, &dsl_dataset_phys(ds)->ds_bp, tx);
-	rrw_exit(&ds->ds_bp_rwlock, FTAG);
+	if (!DSL_SCAN_IS_CLONEDUP(scn) ||
+	    scn->scn_clonedup_dsmode != ZFS_CLONEDUP_OFF) {
+		dmu_buf_will_dirty(ds->ds_dbuf, tx);
+		rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
+		dsl_scan_visit_rootbp(scn, ds,
+		    &dsl_dataset_phys(ds)->ds_bp, tx);
+		rrw_exit(&ds->ds_bp_rwlock, FTAG);
+	}
 
 	char *dsname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	dsl_dataset_name(ds, dsname);
@@ -3128,7 +3332,8 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 		ddt_bp_create(checksum, ddk, &ddlwe->ddlwe_phys, v, &bp);
 
 		scn->scn_visited_this_txg++;
-		scan_funcs[scn->scn_phys.scn_func](scn->scn_dp, &bp, &zb);
+		scan_funcs[scn->scn_phys.scn_func](scn->scn_dp, &bp,
+		    &zb, NULL, NULL);
 	}
 }
 
@@ -4549,9 +4754,21 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 			.txgstart = 0,
 			.txgend = 0,
 		};
+		boolean_t clonedup_restart =
+		    scn->scn_clonedup_restart && !restart_early;
+		uint64_t saved_flags = scn->scn_phys.scn_flags;
+
 		dsl_scan_done(scn, B_FALSE, tx);
-		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
+		scn->scn_clonedup_restart = B_FALSE;
+		if (vdev_resilver_needed(spa->spa_root_vdev, NULL,
+		    NULL)) {
 			setup_sync_arg.func = POOL_SCAN_RESILVER;
+		} else if (clonedup_restart) {
+			setup_sync_arg.func = POOL_SCAN_CLONEDUP;
+			setup_sync_arg.flags =
+			    saved_flags & DSL_CLONEDUP_MODE_FLAGS;
+			setup_sync_arg.restart = B_TRUE;
+		}
 		zfs_dbgmsg("restarting scan func=%u on %s txg=%llu early=%d",
 		    setup_sync_arg.func, dp->dp_spa->spa_name,
 		    (longlong_t)tx->tx_txg, restart_early);
@@ -4648,7 +4865,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 * but afterwards the scan will remain sorted unless reloaded from
 	 * a checkpoint after a reboot.
 	 */
-	if (!zfs_scan_legacy) {
+	if (!zfs_scan_legacy && !DSL_SCAN_IS_CLONEDUP(scn)) {
 		scn->scn_is_sorted = B_TRUE;
 		if (scn->scn_last_checkpoint == 0)
 			scn->scn_last_checkpoint = ddi_get_lbolt();
@@ -4696,7 +4913,8 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		ASSERT0(scn->scn_clearing);
 	}
 
-	if (!scn->scn_clearing && scn->scn_done_txg == 0) {
+	if (!scn->scn_clearing && scn->scn_done_txg == 0 &&
+	    !scn->scn_clonedup_applying) {
 		/* Need to scan metadata for more blocks to scrub */
 		dsl_scan_phys_t *scnp = &scn->scn_phys;
 		taskqid_t prefetch_tqid;
@@ -4768,7 +4986,10 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 
 		if (!scn->scn_suspending) {
 			ASSERT0(avl_numnodes(&scn->scn_queue));
-			scn->scn_done_txg = tx->tx_txg + 1;
+			if (DSL_SCAN_IS_CLONEDUP(scn))
+				dsl_scan_clonedup_walk_done(scn, tx);
+			else
+				scn->scn_done_txg = tx->tx_txg + 1;
 			if (scn->scn_is_sorted) {
 				scn->scn_checkpointing = B_TRUE;
 				scn->scn_clearing = B_TRUE;
@@ -4780,6 +5001,8 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 			    spa->spa_name,
 			    (longlong_t)tx->tx_txg);
 		}
+	} else if (scn->scn_clonedup_applying) {
+		dsl_scan_clonedup_apply_check(scn, tx);
 	} else if (scn->scn_is_sorted && scn->scn_queues_pending != 0) {
 		ASSERT(scn->scn_clearing);
 
@@ -4813,6 +5036,16 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		ASSERT0(scn->scn_queues_pending);
 		dsl_scan_done(scn, B_TRUE, tx);
 		sync_type = SYNC_MANDATORY;
+	}
+
+	if (DSL_SCAN_IS_CLONEDUP(scn)) {
+		if (dsl_scan_is_running(scn))
+			dsl_clonedup_sync_state(dp->dp_clonedup, tx);
+		if (scn->scn_phys.scn_state ==
+		    scn->scn_phys_cached.scn_state &&
+		    scn->scn_phys.scn_flags ==
+		    scn->scn_phys_cached.scn_flags)
+			return;
 	}
 
 	dsl_scan_sync_state(scn, tx, sync_type);
@@ -4981,10 +5214,137 @@ dsl_scan_enqueue(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 	}
 }
 
+/*
+ * Precedence between clonedup runs: quick < default < full.  A
+ * request of higher rank replaces a running one; equal or lower rank
+ * is busy.
+ */
+static int
+dsl_scan_clonedup_rank(uint64_t flags)
+{
+	if (flags & DSF_CLONEDUP_FULL)
+		return (2);
+	if (flags & DSF_CLONEDUP_QUICK)
+		return (0);
+	return (1);
+}
+
+/*
+ * Reset the walk so that the next dsl_scan_sync() starts over from
+ * the MOS with a new minimum txg.  Used between clonedup phases and
+ * between partitions.
+ */
+static void
+dsl_scan_clonedup_start_walk(dsl_scan_t *scn, uint64_t min_txg,
+    dmu_tx_t *tx)
+{
+	dsl_pool_t *dp = scn->scn_dp;
+
+	scan_ds_queue_clear(scn);
+	scan_ds_prefetch_queue_clear(scn);
+	if (scn->scn_phys.scn_queue_obj != 0) {
+		VERIFY0(dmu_object_free(dp->dp_meta_objset,
+		    scn->scn_phys.scn_queue_obj, tx));
+		scn->scn_phys.scn_queue_obj = 0;
+	}
+	if (!DSL_SCAN_IS_DRYRUN(scn)) {
+		scn->scn_phys.scn_queue_obj =
+		    zap_create(dp->dp_meta_objset, DMU_OT_SCAN_QUEUE,
+		    DMU_OT_NONE, 0, tx);
+	}
+	memset(&scn->scn_phys.scn_bookmark, 0,
+	    sizeof (zbookmark_phys_t));
+	scn->scn_phys.scn_min_txg = min_txg;
+	scn->scn_phys.scn_cur_min_txg = min_txg;
+	scn->scn_phys.scn_examined = 0;
+	scn->scn_phys.scn_skipped = 0;
+	scn->scn_suspending = B_FALSE;
+	dsl_scan_sync_state(scn, tx, SYNC_MANDATORY);
+}
+
+static void
+dsl_scan_clonedup_walk_done(dsl_scan_t *scn, dmu_tx_t *tx)
+{
+	dsl_clonedup_t *dcl = scn->scn_dp->dp_clonedup;
+	uint64_t min_txg = 0;
+
+	switch (dsl_clonedup_walk_done(dcl, &min_txg, tx)) {
+	case DCLN_WALK:
+		dsl_scan_clonedup_start_walk(scn, min_txg, tx);
+		break;
+	case DCLN_APPLY:
+		scn->scn_clonedup_applying = B_TRUE;
+		dsl_clonedup_apply_wakeup(scn->scn_dp->dp_spa);
+		break;
+	default:
+		scn->scn_done_txg = tx->tx_txg + 1;
+		break;
+	}
+}
+
+static void
+dsl_scan_clonedup_apply_check(dsl_scan_t *scn, dmu_tx_t *tx)
+{
+	dsl_clonedup_t *dcl = scn->scn_dp->dp_clonedup;
+	uint64_t min_txg = 0;
+
+	if (!dsl_clonedup_apply_done(dcl))
+		return;
+	scn->scn_clonedup_applying = B_FALSE;
+	switch (dsl_clonedup_partition_done(dcl, &min_txg, tx)) {
+	case DCLN_WALK:
+		dsl_scan_clonedup_start_walk(scn, min_txg, tx);
+		break;
+	default:
+		scn->scn_done_txg = tx->tx_txg + 1;
+		break;
+	}
+}
+
+/*
+ * Leaf callback for the clonedup walks.  Issues no I/O: it decides
+ * whether the block takes part and hands it to the index.
+ */
+static int
+dsl_scan_clonedup_cb(dsl_pool_t *dp, const blkptr_t *bp,
+    const zbookmark_phys_t *zb, const dnode_phys_t *dnp,
+    dsl_dataset_t *ds)
+{
+	dsl_scan_t *scn = dp->dp_scan;
+	spa_t *spa = dp->dp_spa;
+	uint8_t flags = 0;
+
+	if (!BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
+		uint64_t asize = BP_GET_ASIZE(bp);
+
+		scn->scn_phys.scn_examined += asize;
+		spa->spa_scan_pass_exam += asize;
+	}
+	if (ds == NULL ||
+	    scn->scn_clonedup_dsmode == ZFS_CLONEDUP_OFF)
+		return (0);
+	if (dsl_dataset_phys(ds)->ds_flags & DS_FLAG_INCONSISTENT)
+		return (0);
+	if (!dsl_clonedup_bp_eligible(spa, bp, dnp, zb))
+		return (0);
+
+	if (ds->ds_is_snapshot || BP_GET_PHYSICAL_BIRTH(bp) <=
+	    dsl_dataset_phys(ds)->ds_prev_snap_txg)
+		flags |= DCE_F_SNAPHELD;
+	if (scn->scn_clonedup_dsmode == ZFS_CLONEDUP_SOURCE)
+		flags |= DCE_F_SRCONLY;
+	if (brt_maybe_exists(spa, bp))
+		flags |= DCE_F_MAYBE_SHARED;
+	dsl_clonedup_visit(dp->dp_clonedup, bp, zb, dnp, flags);
+	return (0);
+}
+
 static int
 dsl_scan_scrub_cb(dsl_pool_t *dp,
-    const blkptr_t *bp, const zbookmark_phys_t *zb)
+    const blkptr_t *bp, const zbookmark_phys_t *zb,
+    const dnode_phys_t *dnp, dsl_dataset_t *ds)
 {
+	(void) dnp, (void) ds;
 	dsl_scan_t *scn = dp->dp_scan;
 	spa_t *spa = dp->dp_spa;
 	uint64_t phys_birth = BP_GET_PHYSICAL_BIRTH(bp);

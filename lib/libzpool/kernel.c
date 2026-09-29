@@ -39,6 +39,7 @@
 #include <libspl.h>
 #include <libzpool.h>
 #include <sys/zfs_context.h>
+#include <sys/dsl_clonedup.h>
 #include <sys/zfs_onexit.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zstd/zstd.h>
@@ -474,6 +475,114 @@ void
 zfsvfs_update_fromname(const char *oldname, const char *newname)
 {
 	(void) oldname, (void) newname;
+}
+
+int
+zfs_clonedup_dst_open(spa_t *spa, uint64_t dsobj, uint64_t object,
+    zfs_clonedup_dst_t **dstp)
+{
+	(void) spa, (void) dsobj, (void) object;
+	*dstp = NULL;
+	return (SET_ERROR(ENOTSUP));
+}
+
+void
+zfs_clonedup_dst_close(zfs_clonedup_dst_t *dst)
+{
+	(void) dst;
+}
+
+objset_t *
+zfs_clonedup_dst_objset(zfs_clonedup_dst_t *dst)
+{
+	(void) dst;
+	return (NULL);
+}
+
+uint64_t
+zfs_clonedup_dst_object(zfs_clonedup_dst_t *dst)
+{
+	(void) dst;
+	return (0);
+}
+
+dsl_clonedup_kstat_id_t
+zfs_clonedup_dst_kind(zfs_clonedup_dst_t *dst)
+{
+	(void) dst;
+	return (DCK_DST_MOUNTED);
+}
+
+boolean_t
+zfs_clonedup_dst_exclusive(zfs_clonedup_dst_t *dst)
+{
+	(void) dst;
+	return (B_TRUE);
+}
+
+int
+zfs_clonedup_dst_prepare(zfs_clonedup_dst_t *dst, uint64_t blkid,
+    const blkptr_t *dexp, objset_t *sos, boolean_t nowait,
+    boolean_t *readyp, void **lockp, zfs_clonedup_result_t *resp)
+{
+	(void) dst, (void) blkid, (void) dexp, (void) sos;
+	(void) nowait;
+	*readyp = B_FALSE;
+	*lockp = NULL;
+	*resp = ZCR_ERROR;
+	return (SET_ERROR(ENOTSUP));
+}
+
+void
+zfs_clonedup_dst_tx_hold(dmu_tx_t *tx, zfs_clonedup_dst_t *dst,
+    uint64_t blkid, uint64_t blksz, boolean_t punch)
+{
+	(void) tx, (void) dst, (void) blkid, (void) blksz,
+	    (void) punch;
+}
+
+int
+zfs_clonedup_src_validate(objset_t *sos, uint64_t sobj,
+    uint64_t sblkid, const blkptr_t *sexp, blkptr_t *bp,
+    zfs_clonedup_result_t *resp)
+{
+	(void) sos, (void) sobj, (void) sblkid, (void) sexp,
+	    (void) bp;
+	*resp = ZCR_ERROR;
+	return (SET_ERROR(ENOTSUP));
+}
+
+int
+zfs_clonedup_dst_finish(zfs_clonedup_dst_t *dst, uint64_t blkid,
+    uint64_t blksz, objset_t *sos, uint64_t sobj, uint64_t sblkid,
+    const blkptr_t *sexp, const blkptr_t *sval, boolean_t punch,
+    dmu_tx_t *tx, zfs_clonedup_result_t *resp)
+{
+	(void) dst, (void) blkid, (void) blksz, (void) sos,
+	    (void) sobj;
+	(void) sblkid, (void) sexp, (void) sval, (void) punch,
+	    (void) tx;
+	*resp = ZCR_ERROR;
+	return (SET_ERROR(ENOTSUP));
+}
+
+void
+zfs_clonedup_dst_unlock(void *lock)
+{
+	(void) lock;
+}
+
+int
+zfs_clonedup_dst_apply(zfs_clonedup_dst_t *dst, uint64_t blkid,
+    const blkptr_t *dexp, objset_t *sos, uint64_t sobj,
+    uint64_t sblkid, const blkptr_t *sexp, boolean_t punch,
+    zfs_clonedup_result_t *resp)
+{
+	(void) dst, (void) blkid, (void) dexp, (void) sos,
+	    (void) sobj;
+	(void) sblkid, (void) sexp, (void) punch;
+	*resp = ZCR_ERROR;
+	return (SET_ERROR(ENOTSUP));
 }
 
 void

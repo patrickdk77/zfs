@@ -52,6 +52,7 @@
 #include <sys/dsl_scan.h>
 #include <sys/dsl_deadlist.h>
 #include <sys/dsl_destroy.h>
+#include <sys/dsl_clonedup.h>
 #include <sys/dsl_userhold.h>
 #include <sys/dsl_bookmark.h>
 #include <sys/policy.h>
@@ -4208,9 +4209,11 @@ dsl_dataset_promote(const char *name, char *conflsnap)
 	ddpa.err_ds = fnvlist_alloc();
 	ddpa.cr = cr;
 
+	dsl_clonedup_yield_begin_name(name);
 	error = dsl_sync_task(name, dsl_dataset_promote_check,
 	    dsl_dataset_promote_sync, &ddpa,
 	    2 + numsnaps, ZFS_SPACE_CHECK_RESERVED);
+	dsl_clonedup_yield_end_name(name);
 
 	crfree(cr);
 

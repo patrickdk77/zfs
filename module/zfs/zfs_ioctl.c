@@ -160,6 +160,7 @@
 #include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
+#include <sys/zfs_vnops.h>
 #include <sys/zap.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
@@ -194,6 +195,7 @@
 #include <sys/dmu_send.h>
 #include <sys/dmu_recv.h>
 #include <sys/dsl_destroy.h>
+#include <sys/dsl_clonedup.h>
 #include <sys/dsl_bookmark.h>
 #include <sys/dsl_userhold.h>
 #include <sys/zfeature.h>
@@ -1992,7 +1994,9 @@ zfs_scan_ioc_validate(uint64_t scan_type, uint64_t scan_cmd,
 
 	/* Reject undefined bits in scan_flags. */
 	if (scan_flags != 0 &&
-	    (scan_flags & ~POOL_SCRUB_THOROUGH) != 0)
+	    (scan_flags & ~(POOL_SCRUB_THOROUGH |
+	    POOL_SCRUB_CLONEDUP_FULL | POOL_SCRUB_CLONEDUP_QUICK |
+	    POOL_SCRUB_CLONEDUP_DRYRUN)) != 0)
 		return (SET_ERROR(EINVAL));
 
 	/* PAUSE must not be combined with any other scrub command. */
@@ -2004,8 +2008,17 @@ zfs_scan_ioc_validate(uint64_t scan_type, uint64_t scan_cmd,
 	    (date_start != 0 || date_end != 0))
 		return (SET_ERROR(EINVAL));
 
-	/* Scan flags only apply to scrubs. */
-	if (scan_flags != 0 && scan_type != POOL_SCAN_SCRUB)
+	/* Thorough is for scrubs, the clonedup flags for clonedup. */
+	if ((scan_flags & POOL_SCRUB_THOROUGH) &&
+	    scan_type != POOL_SCAN_SCRUB)
+		return (SET_ERROR(EINVAL));
+	if ((scan_flags & (POOL_SCRUB_CLONEDUP_FULL |
+	    POOL_SCRUB_CLONEDUP_QUICK |
+	    POOL_SCRUB_CLONEDUP_DRYRUN)) &&
+	    scan_type != POOL_SCAN_CLONEDUP)
+		return (SET_ERROR(EINVAL));
+	if ((scan_flags & POOL_SCRUB_CLONEDUP_FULL) &&
+	    (scan_flags & POOL_SCRUB_CLONEDUP_QUICK))
 		return (SET_ERROR(EINVAL));
 
 	/* Pause and stop must not carry scrub flags. */
@@ -2041,6 +2054,16 @@ zfs_scan_ioc_validate(uint64_t scan_type, uint64_t scan_cmd,
 	return (0);
 }
 
+/* A pause names the scan it means, and only that one is paused. */
+static boolean_t
+zfs_scan_pause_matches(spa_t *spa, uint64_t func)
+{
+	boolean_t clonedup =
+	    dsl_scan_clonedup_scanning(spa_get_dsl(spa));
+
+	return (func == POOL_SCAN_CLONEDUP ? clonedup : !clonedup);
+}
+
 /*
  * inputs:
  * zc_name              name of the pool
@@ -2061,7 +2084,11 @@ zfs_ioc_pool_scan(zfs_cmd_t *zc)
 		return (error);
 
 	if (zc->zc_flags == POOL_SCRUB_PAUSE) {
-		error = spa_scrub_pause_resume(spa, POOL_SCRUB_PAUSE);
+		if (zfs_scan_pause_matches(spa, zc->zc_cookie))
+			error = spa_scrub_pause_resume(spa,
+			    POOL_SCRUB_PAUSE);
+		else
+			error = SET_ERROR(ENOENT);
 	} else if (zc->zc_cookie == POOL_SCAN_NONE)
 		error = spa_scan_stop(spa);
 	else if (zc->zc_flags & POOL_SCRUB_FROM_LAST_TXG)
@@ -2114,11 +2141,26 @@ zfs_ioc_pool_scrub(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	    date_start, date_end)) != 0)
 		return (error);
 
+	if (scan_type == POOL_SCAN_CLONEDUP &&
+	    scan_cmd != POOL_SCRUB_PAUSE && !zfs_bclone_enabled)
+		return (SET_ERROR(ENOTSUP));
+
 	if ((error = spa_open(poolname, &spa, FTAG)) != 0)
 		return (error);
 
+	if (scan_type == POOL_SCAN_CLONEDUP &&
+	    scan_cmd != POOL_SCRUB_PAUSE &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_BLOCK_CLONING)) {
+		spa_close(spa, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
+
 	if (scan_cmd == POOL_SCRUB_PAUSE) {
-		error = spa_scrub_pause_resume(spa, POOL_SCRUB_PAUSE);
+		if (zfs_scan_pause_matches(spa, scan_type))
+			error = spa_scrub_pause_resume(spa,
+			    POOL_SCRUB_PAUSE);
+		else
+			error = SET_ERROR(ENOENT);
 	} else if (scan_type == POOL_SCAN_NONE) {
 		error = spa_scan_stop(spa);
 	} else {
@@ -5174,6 +5216,7 @@ zfs_ioc_rollback(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 			return (SET_ERROR(EINVAL));
 	}
 
+	dsl_clonedup_yield_begin_name(fsname);
 	if (getzfsvfs(fsname, &zfsvfs) == 0) {
 		dsl_dataset_t *ds;
 
@@ -5195,6 +5238,7 @@ zfs_ioc_rollback(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	} else {
 		error = dsl_dataset_rollback(fsname, target, NULL, outnvl);
 	}
+	dsl_clonedup_yield_end_name(fsname);
 	return (error);
 }
 
@@ -5924,6 +5968,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, const char *origin,
 		zfsvfs_t *zfsvfs = NULL;
 		zvol_state_handle_t *zv = NULL;
 
+		dsl_clonedup_yield_begin_name(tofs);
 		if (getzfsvfs(tofs, &zfsvfs) == 0) {
 			/* online recv */
 			dsl_dataset_t *ds;
@@ -5958,6 +6003,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, const char *origin,
 		} else {
 			error = dmu_recv_end(&drc, NULL);
 		}
+		dsl_clonedup_yield_end_name(tofs);
 
 		/* Set delayed properties now, after we're done receiving. */
 		if (recv_delayprops != NULL && error == 0) {
@@ -8628,6 +8674,22 @@ zfsdev_state_destroy(void *priv)
 	zs->zs_minor = -1;
 }
 
+/* A clonedup dry run changes nothing, so it records nothing. */
+static boolean_t
+zfs_ioc_history_skip(int cmd, nvlist_t *innvl)
+{
+	uint64_t type, flags;
+
+	if (cmd != ZFS_IOC_POOL_SCRUB || innvl == NULL)
+		return (B_FALSE);
+	if (nvlist_lookup_uint64(innvl, "scan_type", &type) != 0 ||
+	    type != POOL_SCAN_CLONEDUP)
+		return (B_FALSE);
+	if (nvlist_lookup_uint64(innvl, "scan_flags", &flags) != 0)
+		return (B_FALSE);
+	return ((flags & POOL_SCRUB_CLONEDUP_DRYRUN) != 0);
+}
+
 long
 zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 {
@@ -8758,6 +8820,8 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 		int puterror = 0;
 		spa_t *spa;
 		nvlist_t *lognv = NULL;
+		boolean_t do_log = vec->zvec_allow_log &&
+		    !zfs_ioc_history_skip(cmd, innvl);
 
 		ASSERT0P(vec->zvec_legacy_func);
 
@@ -8765,7 +8829,7 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 		 * Add the innvl to the lognv before calling the func,
 		 * in case the func changes the innvl.
 		 */
-		if (vec->zvec_allow_log) {
+		if (do_log) {
 			lognv = fnvlist_alloc();
 			fnvlist_add_string(lognv, ZPOOL_HIST_IOCTL,
 			    vec->zvec_name);
@@ -8787,7 +8851,7 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 		 */
 		if ((error == 0 ||
 		    (cmd == ZFS_IOC_CHANNEL_PROGRAM && error != EINVAL)) &&
-		    vec->zvec_allow_log &&
+		    do_log &&
 		    spa_open(zc->zc_name, &spa, FTAG) == 0) {
 			if (!nvlist_empty(outnvl)) {
 				size_t out_size = fnvlist_size(outnvl);
