@@ -65,6 +65,10 @@ typedef struct dsl_clonedup_phys {
 	uint64_t dclp_skipped_busy;
 	uint64_t dclp_skipped_policy;
 	uint64_t dclp_errors;
+	uint64_t dclp_filter_slots;	/* 0 if no pre-pass ran */
+	uint64_t dclp_planned_entries;	/* 2*A + B of the pre-pass */
+	uint64_t dclp_filter_seen;	/* blocks the pre-pass saw */
+	uint64_t dclp_keep_pct;		/* percent the filter kept */
 } dsl_clonedup_phys_t;
 
 #define	DSL_CLONEDUP_PHYS_VERSION	1
@@ -160,6 +164,8 @@ typedef enum dsl_clonedup_kstat_id {
 	DCK_KEY_COLLISIONS,	/* key matched, checksum did not */
 	DCK_CKSUM_COLLISIONS,	/* checksum matched, data did not */
 	DCK_COPIES_MISMATCH,	/* declined: unequal DVA counts */
+	DCK_COUNT_WALKS,	/* counting pre-passes run */
+	DCK_FILTER_DROPPED,	/* blocks the filter kept out */
 	DCK_NUM
 } dsl_clonedup_kstat_id_t;
 
@@ -242,6 +248,31 @@ typedef struct dsl_clonedup_worker {
 	uint64_t	dcw_gen;	/* dcl_gen it serves */
 } dsl_clonedup_worker_t;
 
+/*
+ * Counting pre-pass.  Two bits a slot, four slots a byte, indexed by
+ * the block key: never seen, seen once, seen twice or more.  A key
+ * that never repeats cannot pair with anything, so phase 1 declines
+ * to store an entry for it.
+ *
+ * A slot is shared by unrelated keys.  That reports a block as
+ * repeated when it is not, which costs one index entry, the cost of
+ * every block without the filter.  It never reports a repeated key
+ * as unique, so nothing that could pair is lost.
+ *
+ * dcf_once counts slots that went from one to two and dcf_extra
+ * counts blocks that landed on a slot already at two, so
+ * 2 * dcf_once + dcf_extra is exactly how many entries phase 1 will
+ * store.  That is known before the index is allocated.
+ */
+typedef struct dsl_clonedup_filter {
+	uint8_t		*dcf_bits;
+	uint64_t	dcf_slots;	/* power of two */
+	uint64_t	dcf_bytes;
+	uint64_t	dcf_once;	/* A: slots at two */
+	uint64_t	dcf_extra;	/* B: blocks past two */
+	uint64_t	dcf_seen;	/* blocks offered */
+} dsl_clonedup_filter_t;
+
 typedef struct dsl_clonedup {
 	struct dsl_pool	*dcl_dp;
 	kmutex_t	dcl_lock;
@@ -257,6 +288,7 @@ typedef struct dsl_clonedup {
 	uint64_t	dcl_mem_used;
 	uint64_t	dcl_mem_max;
 	uint64_t	dcl_splits;
+	dsl_clonedup_filter_t *dcl_filter;
 
 	/*
 	 * What one apply worker holds while it works: its batch, the

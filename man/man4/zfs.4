@@ -2331,6 +2331,51 @@ turning this off saves index memory but finds fewer duplicates.
 Drop the index when the apply phase starts instead of cloning anything.
 Intended for debugging.
 .
+.It Sy zfs_clonedup_index_filter Ns = Ns Sy 2 Pq uint
+Whether to count keys in a pre-pass before the index walk, so the
+index can skip a key the pass saw only once.
+Only a run with no matching walk can take the pass: a full run, a quick
+run, or a default run while
+.Sy last_clonedup_txg
+is still 0.
+Any later default run also matches new blocks against older ones, which
+the pass does not count, so that run never takes the pass, whatever this
+is set to.
+A run restarted after an export or import does not take it either.
+.Sy 0
+never runs the pass,
+.Sy 1
+runs it on every run that can take it, and
+.Sy 2
+decides from the figures the previous run recorded, whether it finished or
+was canceled.
+With no previous figures,
+.Sy 2
+declines, so the pass does not run on a pool where clonedup has never run.
+.
+.It Sy zfs_clonedup_index_filter_shift Ns = Ns Sy 0 Pq uint
+The number of slots in the counting pre-pass, as a power of two.
+.Sy 0
+derives the count from the blocks the previous run indexed, or from the
+pool's allocated space when there is no previous run.
+Each slot is two bits, so the pass uses a quarter of the slot count in
+bytes.
+A count that would not fit the index memory cap is reduced until it does.
+Values above 40 are taken as 40.
+.
+.It Sy zfs_clonedup_index_dup_pct Ns = Ns Sy 0 Pq uint
+The percentage of new blocks expected to share a checksum with another
+block.
+When
+.Sy zfs_clonedup_index_filter
+is 2, a run that can take the counting pre-pass uses this figure to decide
+whether the pass is worth running.
+.Sy 0
+uses the figure the previous run measured.
+A first run has no measured block count and estimates one from the pool's
+allocated space.
+Values above 100 are taken as 100.
+.
 .It Sy zfs_clonedup_apply_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Run the clonedup apply thread.
 When this is zero, a run stops at the apply phase until it is set again.

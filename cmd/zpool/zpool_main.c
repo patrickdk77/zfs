@@ -9417,9 +9417,12 @@ print_clonedup_status(pool_scan_stat_t *ps, uint_t c)
 			    ctime(&start));
 		}
 		switch (phase) {
+		case POOL_CLONEDUP_COUNT:
 		case POOL_CLONEDUP_INDEX:
-			(void) printf(gettext("\tindexing new data, "
+			(void) printf(gettext("\t%s new data, "
 			    "partition %llu of %llu: %s"),
+			    phase == POOL_CLONEDUP_COUNT ?
+			    gettext("counting") : gettext("indexing"),
 			    (u_longlong_t)part + 1,
 			    (u_longlong_t)parts,
 			    examined);
@@ -9429,9 +9432,11 @@ print_clonedup_status(pool_scan_stat_t *ps, uint_t c)
 			} else {
 				(void) printf(gettext(" walked\n"));
 			}
-			(void) printf(gettext("\t%s blocks indexed, "
-			    "%llu errors\n"), idx,
-			    (u_longlong_t)ps->pss_errors);
+			if (phase == POOL_CLONEDUP_INDEX) {
+				(void) printf(gettext("\t%s blocks "
+				    "indexed, %llu errors\n"), idx,
+				    (u_longlong_t)ps->pss_errors);
+			}
 			break;
 		case POOL_CLONEDUP_MATCH:
 			(void) printf(gettext("\tmatching against "
