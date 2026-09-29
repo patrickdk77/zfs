@@ -722,6 +722,37 @@ pre =
 post =
 tags = ['functional', 'deadman']
 
+[tests/functional/clonedup]
+tests = ['clonedup_apply_order', 'clonedup_apply_txgs', 'clonedup_bad_options',
+    'clonedup_basic', 'clonedup_batching', 'clonedup_bclone_disabled',
+    'clonedup_cross_dataset', 'clonedup_destroy_during_apply',
+    'clonedup_dry_run', 'clonedup_embedded_skipped',
+    'clonedup_empty_incremental', 'clonedup_export_import',
+    'clonedup_feature_disabled', 'clonedup_full', 'clonedup_incremental',
+    'clonedup_lock_order', 'clonedup_mmap_writeback',
+    'clonedup_mount_during_apply', 'clonedup_parallel_cancel',
+    'clonedup_parallel_export', 'clonedup_parallel_finish',
+    'clonedup_parallel_txg_cap', 'clonedup_partitions',
+    'clonedup_pause_resume', 'clonedup_policy_skips', 'clonedup_precedence',
+    'clonedup_promote_rollback_during_apply', 'clonedup_property',
+    'clonedup_queue_obj', 'clonedup_quick', 'clonedup_readonly_pool',
+    'clonedup_receiving_skipped', 'clonedup_recv_during_apply',
+    'clonedup_recv_force_swap', 'clonedup_removing_vdev',
+    'clonedup_replace_during_apply', 'clonedup_resilver_cancels',
+    'clonedup_restart_window', 'clonedup_resume_flags',
+    'clonedup_scrub_errors', 'clonedup_scrub_interplay',
+    'clonedup_scrub_pause', 'clonedup_scrub_paused_busy',
+    'clonedup_skipped_data', 'clonedup_snapheld', 'clonedup_sources',
+    'clonedup_split_groups', 'clonedup_src_rank', 'clonedup_src_truncated',
+    'clonedup_dst_truncated', 'clonedup_zvol_shrunk', 'clonedup_stale_dst',
+    'clonedup_status', 'clonedup_stop_guard', 'clonedup_unmounted_dst',
+    'clonedup_verify_error', 'clonedup_verify_kstat', 'clonedup_writer_race',
+    'clonedup_yield_timeout', 'clonedup_zero_blocks', 'clonedup_zvol_dst',
+    'clonedup_zvol_skips', 'clonedup_zvol_writer_race']
+pre =
+post =
+tags = ['functional', 'clonedup']
+
 [tests/functional/dedup]
 tests = ['dedup_bclone', 'dedup_bclone_pruned', 'dedup_fdt_create',
     'dedup_fdt_import',

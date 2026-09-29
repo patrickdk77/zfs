@@ -138,6 +138,11 @@ idmap_reason = 'Idmapped mount needs kernel 5.12+'
 cfr_reason = 'Kernel copy_file_range support required'
 
 #
+# Older coreutils cp(1) copies a file where newer ones clone it
+#
+cp_clone_reason = 'cp(1) does not clone files'
+
+#
 # POSIX_FADV_NOREUSE is only recorded as FMODE_NOREUSE since Linux 6.3, and
 # RWF_DONTCACHE was added in Linux 6.14.
 #
@@ -218,6 +223,7 @@ maybe = {
     'chattr/setup': ['SKIP', exec_reason],
     'channel_program/lua_core/setup': ['SKIP', zcp_reason],
     'channel_program/synctask_core/setup': ['SKIP', zcp_reason],
+    'clonedup/clonedup_unmounted_dst': ['SKIP', cp_clone_reason],
     'crtime/crtime_001_pos': ['SKIP', statx_reason],
     'cli_root/zfs_share/zfs_share_concurrent_shares': ['FAIL', known_reason],
     'cli_root/zfs_unshare/zfs_unshare_006_pos': ['SKIP', na_reason],

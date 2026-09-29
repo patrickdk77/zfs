@@ -96,6 +96,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/bclone/bclone_common.kshlib \
 	functional/bclone/bclone_corner_cases.kshlib \
 	functional/block_cloning/block_cloning.kshlib \
+	functional/clonedup/clonedup.kshlib \
 	functional/cache/cache.cfg \
 	functional/cache/cache.kshlib \
 	functional/cachefile/cachefile.cfg \
@@ -1577,6 +1578,71 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/deadman/deadman_ratelimit.ksh \
 	functional/deadman/deadman_sync.ksh \
 	functional/deadman/deadman_zio.ksh \
+	functional/clonedup/cleanup.ksh \
+	functional/clonedup/clonedup_apply_order.ksh \
+	functional/clonedup/clonedup_apply_txgs.ksh \
+	functional/clonedup/clonedup_bad_options.ksh \
+	functional/clonedup/clonedup_basic.ksh \
+	functional/clonedup/clonedup_batching.ksh \
+	functional/clonedup/clonedup_bclone_disabled.ksh \
+	functional/clonedup/clonedup_cross_dataset.ksh \
+	functional/clonedup/clonedup_destroy_during_apply.ksh \
+	functional/clonedup/clonedup_dry_run.ksh \
+	functional/clonedup/clonedup_embedded_skipped.ksh \
+	functional/clonedup/clonedup_empty_incremental.ksh \
+	functional/clonedup/clonedup_export_import.ksh \
+	functional/clonedup/clonedup_feature_disabled.ksh \
+	functional/clonedup/clonedup_full.ksh \
+	functional/clonedup/clonedup_incremental.ksh \
+	functional/clonedup/clonedup_lock_order.ksh \
+	functional/clonedup/clonedup_mmap_writeback.ksh \
+	functional/clonedup/clonedup_mount_during_apply.ksh \
+	functional/clonedup/clonedup_parallel_cancel.ksh \
+	functional/clonedup/clonedup_parallel_export.ksh \
+	functional/clonedup/clonedup_parallel_finish.ksh \
+	functional/clonedup/clonedup_parallel_txg_cap.ksh \
+	functional/clonedup/clonedup_partitions.ksh \
+	functional/clonedup/clonedup_pause_resume.ksh \
+	functional/clonedup/clonedup_policy_skips.ksh \
+	functional/clonedup/clonedup_precedence.ksh \
+	functional/clonedup/clonedup_promote_rollback_during_apply.ksh \
+	functional/clonedup/clonedup_property.ksh \
+	functional/clonedup/clonedup_queue_obj.ksh \
+	functional/clonedup/clonedup_quick.ksh \
+	functional/clonedup/clonedup_readonly_pool.ksh \
+	functional/clonedup/clonedup_receiving_skipped.ksh \
+	functional/clonedup/clonedup_recv_during_apply.ksh \
+	functional/clonedup/clonedup_recv_force_swap.ksh \
+	functional/clonedup/clonedup_removing_vdev.ksh \
+	functional/clonedup/clonedup_replace_during_apply.ksh \
+	functional/clonedup/clonedup_resilver_cancels.ksh \
+	functional/clonedup/clonedup_restart_window.ksh \
+	functional/clonedup/clonedup_resume_flags.ksh \
+	functional/clonedup/clonedup_scrub_errors.ksh \
+	functional/clonedup/clonedup_scrub_interplay.ksh \
+	functional/clonedup/clonedup_scrub_pause.ksh \
+	functional/clonedup/clonedup_scrub_paused_busy.ksh \
+	functional/clonedup/clonedup_skipped_data.ksh \
+	functional/clonedup/clonedup_snapheld.ksh \
+	functional/clonedup/clonedup_sources.ksh \
+	functional/clonedup/clonedup_split_groups.ksh \
+	functional/clonedup/clonedup_src_rank.ksh \
+	functional/clonedup/clonedup_src_truncated.ksh \
+	functional/clonedup/clonedup_dst_truncated.ksh \
+	functional/clonedup/clonedup_zvol_shrunk.ksh \
+	functional/clonedup/clonedup_stale_dst.ksh \
+	functional/clonedup/clonedup_status.ksh \
+	functional/clonedup/clonedup_stop_guard.ksh \
+	functional/clonedup/clonedup_unmounted_dst.ksh \
+	functional/clonedup/clonedup_verify_error.ksh \
+	functional/clonedup/clonedup_verify_kstat.ksh \
+	functional/clonedup/clonedup_writer_race.ksh \
+	functional/clonedup/clonedup_yield_timeout.ksh \
+	functional/clonedup/clonedup_zero_blocks.ksh \
+	functional/clonedup/clonedup_zvol_dst.ksh \
+	functional/clonedup/clonedup_zvol_skips.ksh \
+	functional/clonedup/clonedup_zvol_writer_race.ksh \
+	functional/clonedup/setup.ksh \
 	functional/dedup/cleanup.ksh \
 	functional/dedup/setup.ksh \
 	functional/dedup/dedup_bclone.ksh \

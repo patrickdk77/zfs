@@ -46,6 +46,7 @@
 #include <sys/dsl_prop.h>
 #include <sys/fm/util.h>
 #include <sys/dsl_scan.h>
+#include <sys/dsl_clonedup.h>
 #include <sys/fs/zfs.h>
 #include <sys/metaslab_impl.h>
 #include <sys/arc.h>
@@ -2673,6 +2674,7 @@ spa_init(spa_mode_t mode)
 	zpool_feature_init();
 	vdev_prop_init();
 	scan_init();
+	dsl_clonedup_global_init();
 	qat_init();
 	spa_import_progress_init();
 	zap_init();
@@ -2697,6 +2699,7 @@ spa_fini(void)
 	unique_fini();
 	zfs_refcount_fini();
 	fm_fini();
+	dsl_clonedup_global_fini();
 	scan_fini();
 	qat_fini();
 	spa_import_progress_destroy();
@@ -2780,6 +2783,12 @@ uint64_t
 spa_get_last_scrubbed_txg(spa_t *spa)
 {
 	return (spa->spa_scrubbed_last_txg);
+}
+
+uint64_t
+spa_get_last_clonedup_txg(spa_t *spa)
+{
+	return (spa->spa_clonedup_last_txg);
 }
 
 uint64_t
@@ -2880,6 +2889,47 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 	ps->pss_pass_scrub_flags = 0;
 	if (scn->scn_phys.scn_flags & DSF_SCRUB_THOROUGH)
 		ps->pss_pass_scrub_flags |= POOL_SCRUB_THOROUGH;
+
+	/* clonedup data stored on disk */
+	if (spa->spa_dsl_pool->dp_clonedup != NULL) {
+		dsl_clonedup_t *dcl = spa->spa_dsl_pool->dp_clonedup;
+		dsl_clonedup_phys_t *cp = &dcl->dcl_phys;
+
+		mutex_enter(&dcl->dcl_lock);
+		if (cp->dclp_flags & DSF_CLONEDUP_FULL)
+			ps->pss_clonedup_flags |=
+			    POOL_SCRUB_CLONEDUP_FULL;
+		if (cp->dclp_flags & DSF_CLONEDUP_QUICK)
+			ps->pss_clonedup_flags |=
+			    POOL_SCRUB_CLONEDUP_QUICK;
+		if (cp->dclp_flags & DSF_CLONEDUP_DRYRUN)
+			ps->pss_clonedup_flags |=
+			    POOL_SCRUB_CLONEDUP_DRYRUN;
+		ps->pss_clonedup_phase = cp->dclp_phase;
+		ps->pss_clonedup_partition = cp->dclp_partition;
+		ps->pss_clonedup_partitions =
+		    1ULL << cp->dclp_partition_shift;
+		ps->pss_clonedup_indexed = cp->dclp_blocks_indexed;
+		ps->pss_clonedup_groups = cp->dclp_groups;
+		ps->pss_clonedup_candidates = cp->dclp_candidates;
+		ps->pss_clonedup_applied = cp->dclp_applied;
+		ps->pss_clonedup_saved = cp->dclp_bytes_saved;
+		ps->pss_clonedup_saved_snapheld =
+		    cp->dclp_bytes_saved_snapheld;
+		ps->pss_clonedup_skipped = cp->dclp_skipped_stale +
+		    cp->dclp_skipped_dirty +
+		    cp->dclp_skipped_differs +
+		    cp->dclp_skipped_busy + cp->dclp_skipped_policy;
+		ps->pss_clonedup_last_txg = cp->dclp_last_txg;
+		if (ps->pss_func == POOL_SCAN_CLONEDUP)
+			ps->pss_errors += cp->dclp_errors;
+
+		/* clonedup data not stored on disk */
+		ps->pss_clonedup_apply_total = dcl->dcl_apply_total;
+		ps->pss_clonedup_apply_done = dcl->dcl_apply_total -
+		    MIN(dcl->dcl_nentries, dcl->dcl_apply_total);
+		mutex_exit(&dcl->dcl_lock);
+	}
 
 	return (0);
 }

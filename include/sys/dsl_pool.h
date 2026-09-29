@@ -102,6 +102,7 @@ typedef struct dsl_pool {
 	bpobj_t dp_obsolete_bpobj;
 
 	struct dsl_scan *dp_scan;
+	struct dsl_clonedup *dp_clonedup;
 
 	/* Uses dp_lock */
 	kmutex_t dp_lock;

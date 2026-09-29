@@ -433,6 +433,7 @@ ztest_func_t ztest_spa_create_destroy;
 ztest_func_t ztest_fault_inject;
 ztest_func_t ztest_dmu_snapshot_hold;
 ztest_func_t ztest_scrub;
+ztest_func_t ztest_clonedup;
 ztest_func_t ztest_dsl_dataset_promote_busy;
 ztest_func_t ztest_vdev_attach_detach;
 ztest_func_t ztest_vdev_raidz_attach;
@@ -493,6 +494,7 @@ static ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_dmu_snapshot_hold, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_reguid, 1, &zopt_rarely),
 	ZTI_INIT(ztest_scrub, 1, &zopt_rarely),
+	ZTI_INIT(ztest_clonedup, 1, &zopt_rarely),
 	ZTI_INIT(ztest_spa_upgrade, 1, &zopt_rarely),
 	ZTI_INIT(ztest_dsl_dataset_promote_busy, 1, &zopt_rarely),
 	ZTI_INIT(ztest_vdev_attach_detach, 1, &zopt_sometimes),
@@ -6964,6 +6966,34 @@ ztest_scrub_impl(spa_t *spa)
 	ztest_pool_scrubbed = B_TRUE;
 
 	return (0);
+}
+
+/*
+ * Only a dry run works here, because libzpool stubs out the
+ * destination handles the apply phase needs.  The dry run still
+ * exercises the walk, the index and its partition splits under
+ * concurrent load.
+ */
+void
+ztest_clonedup(ztest_ds_t *zd, uint64_t id)
+{
+	(void) zd, (void) id;
+	spa_t *spa = ztest_spa;
+	int error;
+
+	if (ztest_device_removal_active)
+		return;
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_CLONEDUP))
+		return;
+
+	error = spa_scan_range(spa, POOL_SCAN_CLONEDUP, 0, 0,
+	    POOL_SCRUB_CLONEDUP_DRYRUN);
+	if (error == EBUSY || error == ENOTSUP || error == ECANCELED)
+		return;
+	ASSERT0(error);
+
+	while (dsl_scan_clonedup_scanning(spa_get_dsl(spa)))
+		txg_wait_synced(spa_get_dsl(spa), 0);
 }
 
 /*

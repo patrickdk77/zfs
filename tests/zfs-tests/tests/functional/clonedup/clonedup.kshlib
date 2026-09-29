@@ -1,0 +1,458 @@
+#!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+#
+# Copyright (c) 2026, Patrick Domack. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# Word offsets into the saved clonedup progress struct, as printed by
+# "zdb -dddd pool 1" for org.openzfs:clonedup_scan.  Keep in step with
+# dsl_clonedup_phys_t.
+#
+typeset -r CDS_STATE=1
+typeset -r CDS_FLAGS=2
+typeset -r CDS_PHASE=3
+typeset -r CDS_PART_SHIFT=4
+typeset -r CDS_PARTITION=5
+typeset -r CDS_MIN_TXG=6
+typeset -r CDS_MAX_TXG=7
+typeset -r CDS_LAST_TXG=10
+typeset -r CDS_EXAMINED=11
+typeset -r CDS_INDEXED=12
+typeset -r CDS_GROUPS=13
+typeset -r CDS_CANDIDATES=14
+typeset -r CDS_APPLIED=15
+typeset -r CDS_SAVED=16
+typeset -r CDS_SAVED_SNAPHELD=17
+typeset -r CDS_SKIP_STALE=18
+typeset -r CDS_SKIP_DIRTY=19
+typeset -r CDS_SKIP_DIFFERS=20
+typeset -r CDS_SKIP_BUSY=21
+typeset -r CDS_SKIP_POLICY=22
+typeset -r CDS_ERRORS=23
+
+# dsl_scan_state_t values
+typeset -r DSS_SCANNING=1
+typeset -r DSS_FINISHED=2
+typeset -r DSS_CANCELED=3
+
+# dsl_scan_flags_t bits stored in the flags word
+typeset -r DSF_CLONEDUP_FULL=8
+typeset -r DSF_CLONEDUP_QUICK=16
+typeset -r DSF_CLONEDUP_DRYRUN=32
+
+typeset -r CD_BS=131072
+typeset -r CD_BLOCKS=8
+
+# Set CD_VDEV to mirror, raidz1 or any other vdev keyword to build
+# the group's pools with that redundancy.  Empty is a stripe.
+typeset CD_VDEV=${CD_VDEV:-""}
+
+# Set CD_NDISKS to build the group's pools from that many of the
+# disks the suite was given.  Zero uses all of them.  The suite has
+# its own minimum, so take a subset here rather than starving it.
+typeset -i CD_NDISKS=${CD_NDISKS:-0}
+
+# The pid of a command clonedup_bounded gave up on, see there.
+typeset CD_WEDGED_PID=""
+
+function clonedup_disks
+{
+	if (( CD_NDISKS > 0 )); then
+		echo $DISKS | tr ' ' '\n' | head -n $CD_NDISKS |
+		    tr '\n' ' '
+	else
+		echo $DISKS
+	fi
+}
+
+#
+# Create the test pool with clonedup enabled.  Extra arguments are
+# passed to zpool create before the pool name, so dataset properties
+# go in as -O name=value.  CD_VDEV goes in after it, where a vdev
+# keyword belongs.
+#
+function clonedup_pool_create
+{
+	typeset pooldisks=$(clonedup_disks)
+	typeset -i ndisks=$(echo $pooldisks | wc -w)
+
+	case $CD_VDEV in
+	mirror)
+		(( ndisks >= 2 )) ||
+		    log_unsupported "mirror needs two disks"
+		;;
+	raidz*|draid*)
+		(( ndisks >= 3 )) ||
+		    log_unsupported "$CD_VDEV needs three disks"
+		;;
+	esac
+	log_must zpool create -f -o feature@clonedup=enabled \
+	    -O compression=off -O xattr=sa "$@" $TESTPOOL $CD_VDEV \
+	    $pooldisks
+
+	typeset layout=$(zpool list -Hv $TESTPOOL |
+	    awk 'NR > 1 { printf "%s ", $1 }')
+
+	log_note "$TESTPOOL vdevs: $layout"
+	if [[ -n $CD_VDEV ]]; then
+		[[ $layout == $CD_VDEV-0\ * ]] ||
+		    log_fail "asked for $CD_VDEV, built: $layout"
+	fi
+}
+
+#
+# Run a command that must return within secs seconds, and fail the
+# test when it does not.  A command blocked inside the kernel cannot
+# be killed, so it is left where it is, and the cleanup then leaves
+# the pool alone rather than block behind it.
+#
+function clonedup_bounded # secs cmd...
+{
+	typeset -i secs=$1 i status
+	typeset done=$(mktemp) pid
+
+	shift
+	log_note "within $secs seconds: $*"
+	( "$@"; echo $? > $done ) &
+	pid=$!
+	for ((i = 0; i < secs * 10; i++)); do
+		if [[ -s $done ]]; then
+			status=$(<$done)
+			rm -f $done
+			(( status == 0 )) ||
+			    log_fail "$* exited $status"
+			return 0
+		fi
+		sleep 0.1
+	done
+	CD_WEDGED_PID=$pid
+	log_fail "$* did not return within $secs seconds"
+}
+
+function clonedup_cleanup
+{
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
+	if [[ -n $CD_WEDGED_PID ]]; then
+		log_note "leaving $TESTPOOL: pid $CD_WEDGED_PID" \
+		    "never returned"
+		return 0
+	fi
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	return 0
+}
+
+# Write count random blocks of bs bytes to file.
+function clonedup_write # file [count] [bs]
+{
+	typeset file=$1
+	typeset count=${2:-$CD_BLOCKS}
+	typeset bs=${3:-$CD_BS}
+
+	log_must dd if=/dev/urandom of=$file bs=$bs count=$count \
+	    status=none
+}
+
+# Copy a file byte for byte.  cp would clone it on ZFS.
+function clonedup_dup # src dst
+{
+	log_must dd if=$1 of=$2 bs=$CD_BS status=none
+}
+
+function clonedup_sync
+{
+	log_must sync
+	log_must zpool sync $TESTPOOL
+}
+
+# Run clonedup to completion.
+function clonedup_run # [flags]
+{
+	log_must zpool clonedup "$@" -w $TESTPOOL
+}
+
+# Everything the run recorded, for the log of a failing check.
+function clonedup_dump_stats
+{
+	log_note "progress: $(zdb -dddd $TESTPOOL 1 | \
+	    grep clonedup_scan)"
+	log_note "kstat: clones $(clonedup_kstat clones)" \
+	    "punched $(clonedup_kstat punched)" \
+	    "dst mounted/zvol/owned $(clonedup_kstat dst_mounted)/" \
+	    "$(clonedup_kstat dst_zvol)/$(clonedup_kstat dst_owned)" \
+	    "yields $(clonedup_kstat yields)"
+	log_note "status: $(zpool status $TESTPOOL | grep -A3 scan:)"
+}
+
+# Word n of the saved progress struct.
+function clonedup_stat # word
+{
+	typeset w=$1
+
+	typeset out i
+
+	# zpool wait returns from inside the txg that writes the final
+	# record, so wait for that txg to reach the disk zdb reads
+	zpool sync $TESTPOOL >/dev/null 2>&1
+	# zdb can miss the pool for a moment after a config change
+	for ((i = 0; i < 5; i++)); do
+		out=$(zdb -dddd $TESTPOOL 1 2>/dev/null) && break
+		sleep 1
+	done
+	echo "$out" | awk -v f=$((w + 3)) \
+	    '/org.openzfs:clonedup_scan = / { print $f; exit }'
+}
+
+# Assert a progress word has an exact value.
+function clonedup_stat_is # word value
+{
+	typeset got=$(clonedup_stat $1)
+
+	log_note "clonedup word $1 = $got (want $2)"
+	log_must [ "$got" -eq "$2" ]
+}
+
+# Assert a progress word is above a value.
+function clonedup_stat_gt # word value
+{
+	typeset got=$(clonedup_stat $1)
+
+	log_note "clonedup word $1 = $got (want > $2)"
+	log_must [ "$got" -gt "$2" ]
+}
+
+# A progress counter from the running kernel rather than from disk.
+function clonedup_jstat # key
+{
+	zpool status -j --json-int $TESTPOOL |
+	    sed -n 's/.*"'"$1"'":\([0-9][0-9]*\).*/\1/p'
+}
+
+# The block indices two files share, as get_same_blocks prints them.
+function clonedup_shared # ds1 file1 ds2 file2 [key]
+{
+	get_same_blocks "$1" "$2" "$3" "$4" $5
+}
+
+# Assert two files share exactly the given block list ("" for none).
+function clonedup_check_shared # ds1 file1 ds2 file2 expected [key]
+{
+	typeset got=$(clonedup_shared "$1" "$2" "$3" "$4" $6)
+
+	log_note "shared blocks of $2 and $4: '$got' (want '$5')"
+	[[ "$got" = "$5" ]] || clonedup_dump_stats
+	log_must [ "$got" = "$5" ]
+}
+
+# The L0 block addresses of a volume's data object, one per line,
+# indexed from 0.  zdb takes the dataset name and object 1; naming
+# the pool alone would dump the meta-objset instead.
+function clonedup_vol_blocks # vol
+{
+	zdb -dddddd $1 1 | awk '/ L0 / { print l++ " " $3 }'
+}
+
+# The same for a file, found by path within its dataset.
+function clonedup_file_blocks # ds file
+{
+	zdb -vvvvv $1 -O $2 | awk '/ L0 / { print l++ " " $3 }'
+}
+
+#
+# Allocated size of one of a file's blocks, the figure the apply's
+# saved-bytes counter accumulates.  On a stripe or a mirror this is
+# the record size; raidz adds parity to it.  Reads DVA[0] only, so
+# it is wrong for copies above 1, which the group does not use.
+#
+function clonedup_blk_asize # ds file
+{
+	typeset dva=$(zdb -vvvvv $1 -O $2 |
+	    awk '/ L0 / { print $3; exit }' | tr -d '<>')
+
+	printf "%d\n" 0x${dva##*:}
+}
+
+# Assert a file and a volume share exactly the given block list.
+function clonedup_check_shared_vol # ds file vol expected
+{
+	typeset out1=$(mktemp) out2=$(mktemp)
+	typeset got
+
+	clonedup_file_blocks $1 $2 > $out1
+	clonedup_vol_blocks $3 > $out2
+	got=$(echo $(sort -n $out1 $out2 | uniq -d | cut -f1 -d' '))
+	rm -f $out1 $out2
+	log_note "shared blocks of $1/$2 and $3: '$got' (want '$4')"
+	[[ "$got" == "$4" ]] || clonedup_dump_stats
+	log_must [ "$got" = "$4" ]
+}
+
+# Create a volume of CD_BLOCKS blocks of CD_BS bytes and wait for its
+# device node.
+function clonedup_zvol_create # name
+{
+	log_must zfs create -V $((CD_BS * CD_BLOCKS)) -b $CD_BS $1
+	block_device_wait $ZVOL_DEVDIR/$1
+}
+
+# Read a volume through direct I/O where the platform allows it,
+# so the compare sees what ZFS holds rather than the page cache.
+function clonedup_zvol_read # name
+{
+	if is_linux; then
+		dd if=$ZVOL_DEVDIR/$1 bs=$CD_BS count=$CD_BLOCKS \
+		    iflag=direct status=none
+	else
+		dd if=$ZVOL_DEVDIR/$1 bs=$CD_BS count=$CD_BLOCKS \
+		    status=none
+	fi
+}
+
+# Write a file's content into a volume and flush it to ZFS.
+function clonedup_zvol_fill # file name
+{
+	log_must dd if=$1 of=$ZVOL_DEVDIR/$2 bs=$CD_BS \
+	    conv=notrunc,fsync status=none
+}
+
+# Wait for a run to reach the apply phase.
+function clonedup_wait_applying # [timeout]
+{
+	typeset timeout=${1:-120}
+	typeset i
+
+	for ((i = 0; i < timeout * 10; i++)); do
+		zpool status $TESTPOOL | grep -q "applying" && \
+		    return 0
+		sleep 0.1
+	done
+	log_fail "clonedup did not reach the apply phase" \
+	    "in $timeout seconds"
+}
+
+# Wait until the apply workers have taken n entries.
+function clonedup_wait_apply_done # n [timeout]
+{
+	typeset -i n=$1 timeout=${2:-120} i got
+
+	for ((i = 0; i < timeout * 10; i++)); do
+		got=$(clonedup_jstat clonedup_apply_done)
+		(( got >= n )) && return 0
+		sleep 0.1
+	done
+	log_fail "the apply did not take $n entries" \
+	    "in $timeout seconds"
+}
+
+# One counter of the pool's clonedup kstat.
+function clonedup_kstat # name
+{
+	kstat_pool $TESTPOOL clonedup.$1
+}
+
+# Assert a kstat counter has an exact value, or above it with the
+# _gt variant.
+function clonedup_kstat_is # name value
+{
+	typeset got=$(clonedup_kstat $1)
+
+	log_note "clonedup kstat $1 = $got (want $2)"
+	log_must [ "$got" -eq "$2" ]
+}
+
+function clonedup_kstat_gt # name value
+{
+	typeset got=$(clonedup_kstat $1)
+
+	log_note "clonedup kstat $1 = $got (want > $2)"
+	log_must [ "$got" -gt "$2" ]
+}
+
+# CD_BLOCKS distinct blocks that compress well, on stdout.
+function clonedup_compressible
+{
+	typeset i
+
+	for ((i = 0; i < CD_BLOCKS; i++)); do
+		yes "block $i" | head -c $CD_BS
+	done
+}
+
+# "0 1 2 ... n-1"
+function clonedup_all_blocks # [n]
+{
+	typeset n=${1:-$CD_BLOCKS}
+	typeset out=""
+	typeset -i i
+
+	for ((i = 0; i < n; i++)); do
+		out="$out${out:+ }$i"
+	done
+	echo "$out"
+}
+
+# Hold every scan (including clonedup walks) in place.
+function clonedup_hold
+{
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
+}
+
+function clonedup_release
+{
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
+}
+
+function clonedup_is_running
+{
+	zpool status $TESTPOOL | grep -q "clonedup.* in progress"
+}
+
+function clonedup_is_paused
+{
+	zpool status $TESTPOOL | grep -q "clonedup paused"
+}
+
+# Wait for a clonedup run to appear in zpool status.
+function clonedup_wait_running # [timeout]
+{
+	typeset timeout=${1:-60}
+	typeset i
+
+	for ((i = 0; i < timeout * 10; i++)); do
+		clonedup_is_running && return 0
+		sleep 0.1
+	done
+	log_fail "clonedup did not start within $timeout seconds"
+}
+
+function clonedup_last_txg
+{
+	zpool get -Hpo value last_clonedup_txg $TESTPOOL
+}
+
+# No block may be leaked or double allocated after a run.
+function clonedup_leakcheck
+{
+	typeset out leak
+
+	clonedup_sync
+	out=$(zdb -b $TESTPOOL 2>&1) ||
+	    log_fail "zdb -b $TESTPOOL failed: $out"
+	leak=$(echo "$out" | \
+	    grep -E "leaked space|block traversal size")
+	if [[ -n $leak ]]; then
+		log_fail "zdb -b $TESTPOOL leaked space: $leak"
+	fi
+}
