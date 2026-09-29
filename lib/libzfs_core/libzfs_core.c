@@ -1108,11 +1108,14 @@ recv_read(int fd, void *buf, int ilen)
  * Non-Linux OpenZFS platforms have opted to modify the legacy interface.
  */
 static int
-recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
-    uint8_t *wkeydata, uint_t wkeylen, const char *origin, boolean_t force,
-    boolean_t heal, boolean_t resumable, boolean_t raw, int input_fd,
-    const dmu_replay_record_t *begin_record, uint64_t *read_bytes,
-    uint64_t *errflags, nvlist_t **errors)
+recv_impl_ex(const char *snapname, nvlist_t *recvdprops,
+    nvlist_t *localprops, uint8_t *wkeydata, uint_t wkeylen,
+    const char *origin, boolean_t force, boolean_t heal,
+    boolean_t resumable, boolean_t raw, boolean_t clonedup,
+    boolean_t clonedup_match, int input_fd,
+    const dmu_replay_record_t *begin_record,
+    uint64_t *read_bytes, uint64_t *errflags, uint64_t *cd_cloned,
+    uint64_t *cd_saved, int *cd_skipped, nvlist_t **errors)
 {
 	dmu_replay_record_t drr;
 	char fsname[MAXPATHLEN];
@@ -1164,8 +1167,11 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 
 	/*
 	 * All receives with a payload should use the new interface.
+	 * So must a clonedup receive, because the legacy interface
+	 * cannot carry the flag.
 	 */
-	if (resumable || heal || raw || wkeydata != NULL || payload) {
+	if (resumable || heal || raw || clonedup ||
+	    wkeydata != NULL || payload) {
 		nvlist_t *outnvl = NULL;
 		nvlist_t *innvl = fnvlist_alloc();
 
@@ -1208,11 +1214,33 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		if (heal)
 			fnvlist_add_boolean(innvl, "heal");
 
+		if (clonedup)
+			fnvlist_add_boolean(innvl, "clonedup");
+
+		if (clonedup_match)
+			fnvlist_add_boolean(innvl, "clonedup_match");
+
 		error = lzc_ioctl(ZFS_IOC_RECV_NEW, fsname, innvl, &outnvl);
 
 		if (error == 0 && read_bytes != NULL)
 			error = nvlist_lookup_uint64(outnvl, "read_bytes",
 			    read_bytes);
+
+		if (error == 0 && cd_cloned != NULL) {
+			(void) nvlist_lookup_uint64(outnvl,
+			    "clonedup_cloned", cd_cloned);
+		}
+		if (error == 0 && cd_saved != NULL) {
+			(void) nvlist_lookup_uint64(outnvl,
+			    "clonedup_saved", cd_saved);
+		}
+		if (error == 0 && cd_skipped != NULL) {
+			uint64_t v = 0;
+
+			(void) nvlist_lookup_uint64(outnvl,
+			    "clonedup_skipped", &v);
+			*cd_skipped = (int)v;
+		}
 
 		if (error == 0 && errflags != NULL)
 			error = nvlist_lookup_uint64(outnvl, "error_flags",
@@ -1308,6 +1336,47 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 	}
 
 	return (error);
+}
+
+static int
+recv_impl(const char *snapname, nvlist_t *recvdprops,
+    nvlist_t *localprops, uint8_t *wkeydata, uint_t wkeylen,
+    const char *origin, boolean_t force, boolean_t heal,
+    boolean_t resumable, boolean_t raw, int input_fd,
+    const dmu_replay_record_t *begin_record, uint64_t *read_bytes,
+    uint64_t *errflags, nvlist_t **errors)
+{
+	return (recv_impl_ex(snapname, recvdprops, localprops,
+	    wkeydata, wkeylen, origin, force, heal, resumable, raw,
+	    B_FALSE, B_FALSE, input_fd, begin_record, read_bytes,
+	    errflags, NULL, NULL, NULL, errors));
+}
+
+/*
+ * Like lzc_receive_with_heal.  With 'clonedup' set, the kernel runs a
+ * clonedup pass over the received blocks before taking the snapshot,
+ * matching them against each other, or with 'clonedup_match' against
+ * the rest of the pool too.  Returns the blocks cloned in 'cd_cloned'
+ * and the bytes saved in 'cd_saved'.  A pass that did not run leaves
+ * both at zero and puts the reason, an errno, in 'cd_skipped'.  The
+ * kernel runs no pass on a healing receive, so 'heal' and 'clonedup'
+ * exclude each other.
+ */
+int lzc_receive_with_clonedup(const char *snapname, nvlist_t *props,
+    nvlist_t *cmdprops, uint8_t *wkeydata, uint_t wkeylen,
+    const char *origin, boolean_t force, boolean_t heal,
+    boolean_t resumable, boolean_t raw, boolean_t clonedup,
+    boolean_t clonedup_match, int input_fd,
+    const dmu_replay_record_t *begin_record, int cleanup_fd,
+    uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
+    uint64_t *cd_cloned, uint64_t *cd_saved, int *cd_skipped,
+    nvlist_t **errors)
+{
+	(void) action_handle, (void) cleanup_fd;
+	return (recv_impl_ex(snapname, props, cmdprops, wkeydata,
+	    wkeylen, origin, force, heal, resumable, raw, clonedup,
+	    clonedup_match, input_fd, begin_record, read_bytes,
+	    errflags, cd_cloned, cd_saved, cd_skipped, errors));
 }
 
 /*

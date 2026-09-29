@@ -20,7 +20,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd March 12, 2023
+.Dd September 27, 2026
 .Dt ZFS-RECEIVE 8
 .Os
 .
@@ -31,6 +31,7 @@
 .Nm zfs
 .Cm receive
 .Op Fl FhMnsuv
+.Op Fl k Ns | Ns Fl K
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
@@ -38,6 +39,7 @@
 .Nm zfs
 .Cm receive
 .Op Fl FhMnsuv
+.Op Fl k Ns | Ns Fl K
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -59,6 +61,7 @@
 .Nm zfs
 .Cm receive
 .Op Fl FhMnsuv
+.Op Fl k Ns | Ns Fl K
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
@@ -68,6 +71,7 @@
 .Nm zfs
 .Cm receive
 .Op Fl FhMnsuv
+.Op Fl k Ns | Ns Fl K
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -242,6 +246,54 @@ If receiving an incremental replication stream
 .Nm zfs Cm send Fl R Op Fl i Ns | Ns Fl I
 .Pc ,
 destroy snapshots and file systems that do not exist on the sending side.
+.It Fl k
+Clone the received blocks onto each other before the snapshot is taken.
+Where two or more blocks the stream wrote are identical, all but one become
+clones of it, so data the stream carries several times is stored once.
+The pass looks at nothing outside the stream and writes nothing to the pool
+but the clones.
+.It Fl K
+Like
+.Fl k ,
+but also compare the received blocks against every other dataset on the
+pool whose
+.Sy clonedup
+property is not
+.Sy off
+and which is not itself being received, so a block that already exists
+anywhere on the receiving side is stored as a clone of that copy.
+A backup pool needs this pass.
+A later
+.Nm zpool Cm clonedup
+run there would redirect blocks that a snapshot holds, which changes each
+dataset since its last snapshot; the next incremental receive then needs
+.Fl F ,
+and its rollback discards the change.
+The pass walks the pool's metadata once for each partition of its index.
+That is one walk unless the received blocks outgrow the index memory cap.
+The command returns only when the pass is done.
+.Pp
+With either option, the pass is skipped for encrypted and raw streams, for
+datasets with
+.Sy clonedup Ns = Ns Sy off ,
+when the
+.Sy block_cloning
+feature is not enabled or
+.Sy zfs_bclone_enabled
+is 0, when
+.Sy zfs_clonedup_apply_enabled
+is 0, while a
+.Nm zpool Cm clonedup
+run is scanning or still applying, and while another receive's pass is
+running.
+With
+.Fl v
+the receive reports a skipped pass and the reason.
+The pass indexes the received blocks and stops there when they number fewer
+than
+.Sy zfs_clonedup_recv_min_blocks .
+Neither option can be used with
+.Fl c .
 .It Fl d
 Discard the first element of the sent snapshot's file system name, using the
 remaining elements to determine the name of the target file system for the new

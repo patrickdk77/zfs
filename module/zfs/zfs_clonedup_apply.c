@@ -55,6 +55,7 @@ struct zfs_clonedup_dst {
 	zvol_state_t	*zcd_zv;	/* volume: one open count */
 	objset_t	*zcd_os;	/* owned dataset */
 	dnode_t		*zcd_dn;	/* owned: the object */
+	boolean_t	zcd_borrowed;	/* the caller owns zcd_os */
 };
 
 /* zfs_enter() and zfs_exit() must see the same tag */
@@ -301,6 +302,36 @@ fail:
 }
 
 /*
+ * A destination in an objset the caller already owns, such as the
+ * dataset a receive is writing into.  The handle borrows that
+ * ownership and gives back only the dnode.
+ */
+int
+zfs_clonedup_dst_wrap(objset_t *os, uint64_t object,
+    zfs_clonedup_dst_t **dstp)
+{
+	dmu_object_info_t doi;
+	zfs_clonedup_dst_t *dst;
+	dnode_t *dn;
+	int err;
+
+	if (dmu_object_info(os, object, &doi) != 0 ||
+	    (doi.doi_type != DMU_OT_PLAIN_FILE_CONTENTS &&
+	    doi.doi_type != DMU_OT_ZVOL))
+		return (SET_ERROR(ENOENT));
+	err = dnode_hold(os, object, &zfs_clonedup_tag, &dn);
+	if (err != 0)
+		return (err);
+	dst = kmem_zalloc(sizeof (*dst), KM_SLEEP);
+	dst->zcd_object = object;
+	dst->zcd_os = os;
+	dst->zcd_dn = dn;
+	dst->zcd_borrowed = B_TRUE;
+	*dstp = dst;
+	return (0);
+}
+
+/*
  * The mounted or open path is tried first, ownership second, and the
  * first path once more if the dataset was mounted or opened between
  * the two.  Whatever is left is EBUSY and counted as such.
@@ -352,8 +383,10 @@ zfs_clonedup_dst_close(zfs_clonedup_dst_t *dst)
 		zfs_clonedup_zvol_close(dst->zcd_zv);
 	} else if (dst->zcd_os != NULL) {
 		dnode_rele(dst->zcd_dn, &zfs_clonedup_tag);
-		dmu_objset_disown(dst->zcd_os, B_FALSE,
-		    &zfs_clonedup_tag);
+		if (!dst->zcd_borrowed) {
+			dmu_objset_disown(dst->zcd_os, B_FALSE,
+			    &zfs_clonedup_tag);
+		}
 	} else {
 		zfsvfs_t *zfsvfs = dst->zcd_zfsvfs;
 
@@ -409,7 +442,7 @@ zfs_clonedup_dst_kind(zfs_clonedup_dst_t *dst)
 boolean_t
 zfs_clonedup_dst_exclusive(zfs_clonedup_dst_t *dst)
 {
-	return (dst->zcd_os != NULL);
+	return (dst->zcd_os != NULL && !dst->zcd_borrowed);
 }
 
 /* the same cross-dataset rule as zfs_clone_range_precheck() */

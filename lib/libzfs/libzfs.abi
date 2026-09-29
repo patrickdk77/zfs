@@ -8013,7 +8013,7 @@
     </class-decl>
     <typedef-decl name='sendflags_t' type-id='f6aa15be' id='945467e6'/>
     <typedef-decl name='snapfilter_cb_t' type-id='d2a5e211' id='3d3ffb69'/>
-    <class-decl name='recvflags' size-in-bits='448' is-struct='yes' visibility='default' id='34a384dc'>
+    <class-decl name='recvflags' size-in-bits='512' is-struct='yes' visibility='default' id='34a384dc'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='verbose' type-id='c19b74c3' visibility='default'/>
       </data-member>
@@ -8055,6 +8055,12 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='416'>
         <var-decl name='heal' type-id='c19b74c3' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='448'>
+        <var-decl name='clonedup' type-id='c19b74c3' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='480'>
+        <var-decl name='clonedup_match' type-id='c19b74c3' visibility='default'/>
       </data-member>
     </class-decl>
     <typedef-decl name='recvflags_t' type-id='34a384dc' id='9e59d1d4'/>
@@ -8669,6 +8675,31 @@
       <parameter type-id='5d6479ae'/>
       <parameter type-id='5d6479ae'/>
       <parameter type-id='5d6479ae'/>
+      <parameter type-id='857bb57e'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_receive_with_clonedup' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='5ce45b60'/>
+      <parameter type-id='5ce45b60'/>
+      <parameter type-id='ae3e8ca6'/>
+      <parameter type-id='3502e3ff'/>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='c19b74c3'/>
+      <parameter type-id='c19b74c3'/>
+      <parameter type-id='c19b74c3'/>
+      <parameter type-id='c19b74c3'/>
+      <parameter type-id='c19b74c3'/>
+      <parameter type-id='c19b74c3'/>
+      <parameter type-id='95e97e5e'/>
+      <parameter type-id='41671bd6'/>
+      <parameter type-id='95e97e5e'/>
+      <parameter type-id='5d6479ae'/>
+      <parameter type-id='5d6479ae'/>
+      <parameter type-id='5d6479ae'/>
+      <parameter type-id='5d6479ae'/>
+      <parameter type-id='5d6479ae'/>
+      <parameter type-id='7292109c'/>
       <parameter type-id='857bb57e'/>
       <return type-id='95e97e5e'/>
     </function-decl>

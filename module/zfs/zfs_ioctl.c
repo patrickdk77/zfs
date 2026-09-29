@@ -5820,9 +5820,11 @@ static boolean_t zfs_ioc_recv_inject_err;
 static int
 zfs_ioc_recv_impl(char *tofs, char *tosnap, const char *origin,
     nvlist_t *recvprops, nvlist_t *localprops, nvlist_t *hidden_args,
-    boolean_t force, boolean_t heal, boolean_t resumable, int input_fd,
+    boolean_t force, boolean_t heal, boolean_t resumable,
+    boolean_t clonedup, boolean_t cd_match, int input_fd,
     dmu_replay_record_t *begin_record, uint64_t *read_bytes,
-    uint64_t *errflags, nvlist_t **errors)
+    uint64_t *errflags, uint64_t *cd_cloned, uint64_t *cd_saved,
+    int *cd_err, nvlist_t **errors)
 {
 	dmu_recv_cookie_t drc;
 	int error = 0;
@@ -5969,6 +5971,29 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, const char *origin,
 		zvol_state_handle_t *zv = NULL;
 
 		dsl_clonedup_yield_begin_name(tofs);
+		if (clonedup) {
+			uint64_t cloned = 0, saved = 0;
+			int cerr = SET_ERROR(ENOTSUP);
+
+			if (!drc.drc_heal && !drc.drc_raw &&
+			    zfs_bclone_enabled) {
+				cerr = dsl_clonedup_recv(
+				    drc.drc_ds->ds_dir->dd_pool,
+				    drc.drc_ds, cd_match, &cloned,
+				    &saved);
+			}
+			if (cerr != 0) {
+				zfs_dbgmsg("clonedup: receive into "
+				    "%s: pass skipped, err %d", tofs,
+				    cerr);
+			}
+			if (cd_cloned != NULL)
+				*cd_cloned = cloned;
+			if (cd_saved != NULL)
+				*cd_saved = saved;
+			if (cd_err != NULL)
+				*cd_err = cerr;
+		}
 		if (getzfsvfs(tofs, &zfsvfs) == 0) {
 			/* online recv */
 			dsl_dataset_t *ds;
@@ -6212,8 +6237,9 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	begin_record.drr_u.drr_begin = zc->zc_begin_record;
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvdprops, localprops,
-	    NULL, zc->zc_guid, B_FALSE, B_FALSE, zc->zc_cookie, &begin_record,
-	    &zc->zc_cookie, &zc->zc_obj, &errors);
+	    NULL, zc->zc_guid, B_FALSE, B_FALSE, B_FALSE, B_FALSE,
+	    zc->zc_cookie, &begin_record, &zc->zc_cookie,
+	    &zc->zc_obj, NULL, NULL, NULL, &errors);
 
 	/*
 	 * Now that all props, initial and delayed, are set, report the prop
@@ -6272,6 +6298,8 @@ static const zfs_ioc_key_t zfs_keys_recv_new[] = {
 	{"force",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"heal",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"resumable",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
+	{"clonedup",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
+	{"clonedup_match",	DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"cleanup_fd",		DATA_TYPE_INT32,	ZK_OPTIONAL},
 	{"action_handle",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
 	{"hidden_args",		DATA_TYPE_NVLIST,	ZK_OPTIONAL},
@@ -6292,6 +6320,9 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	char tofs[ZFS_MAX_DATASET_NAME_LEN];
 	boolean_t force;
 	boolean_t heal;
+	boolean_t clonedup, cd_match;
+	uint64_t cd_cloned = 0, cd_saved = 0;
+	int cd_err = 0;
 	boolean_t resumable;
 	uint64_t read_bytes = 0;
 	uint64_t errflags = 0;
@@ -6324,6 +6355,8 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	force = nvlist_exists(innvl, "force");
 	heal = nvlist_exists(innvl, "heal");
 	resumable = nvlist_exists(innvl, "resumable");
+	clonedup = nvlist_exists(innvl, "clonedup");
+	cd_match = nvlist_exists(innvl, "clonedup_match");
 
 	/* we still use "props" here for backwards compatibility */
 	error = nvlist_lookup_nvlist(innvl, "props", &recvprops);
@@ -6339,11 +6372,22 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		goto out;
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvprops, localprops,
-	    hidden_args, force, heal, resumable, input_fd, begin_record,
-	    &read_bytes, &errflags, &errors);
+	    hidden_args, force, heal, resumable, clonedup, cd_match,
+	    input_fd, begin_record, &read_bytes, &errflags,
+	    &cd_cloned, &cd_saved, &cd_err, &errors);
 
 	fnvlist_add_uint64(outnvl, "read_bytes", read_bytes);
 	fnvlist_add_uint64(outnvl, "error_flags", errflags);
+	if (clonedup) {
+		fnvlist_add_uint64(outnvl, "clonedup_cloned",
+		    cd_cloned);
+		fnvlist_add_uint64(outnvl, "clonedup_saved",
+		    cd_saved);
+		if (cd_err != 0) {
+			fnvlist_add_uint64(outnvl,
+			    "clonedup_skipped", cd_err);
+		}
+	}
 	fnvlist_add_nvlist(outnvl, "errors", errors);
 
 out:

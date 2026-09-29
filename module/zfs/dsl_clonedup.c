@@ -254,8 +254,8 @@ static const char *const dsl_clonedup_kstat_names[DCK_NUM] = {
 	"verify_reads", "verify_bytes", "clones", "punched",
 	"yields", "yield_waits", "index_walks", "match_walks",
 	"dst_mounted", "dst_zvol", "dst_owned", "batches",
-	"key_collisions", "cksum_collisions", "copies_mismatch",
-	"count_walks", "filter_dropped",
+	"recv_runs", "key_collisions", "cksum_collisions",
+	"copies_mismatch", "count_walks", "filter_dropped",
 };
 
 #define	DCL_BUMP(dcl, id, n)	wmsum_add(&(dcl)->dcl_wsums[id], (n))
@@ -387,6 +387,8 @@ dsl_clonedup_sync_state(dsl_clonedup_t *dcl, dmu_tx_t *tx)
 	dsl_pool_t *dp = dcl->dcl_dp;
 	dsl_clonedup_phys_t phys;
 
+	if (dcl->dcl_recv_os != NULL)
+		return;
 	ASSERT(dmu_tx_is_syncing(tx));
 	mutex_enter(&dcl->dcl_lock);
 	if (dcl->dcl_phys.dclp_flags & DSF_CLONEDUP_DRYRUN) {
@@ -881,7 +883,8 @@ dsl_clonedup_visit(dsl_clonedup_t *dcl, const blkptr_t *bp,
 				    flags);
 			break;
 		case POOL_CLONEDUP_MATCH:
-			if (birth <= p->dclp_min_txg)
+			if (dcl->dcl_recv_os != NULL ||
+			    birth <= p->dclp_min_txg)
 				dsl_clonedup_match(dcl, bp, zb, dnp,
 				    flags);
 			break;
@@ -1281,6 +1284,9 @@ static uint_t zfs_clonedup_apply_threads = 0;
 #define	DCL_OPEN_RETRIES	100
 #define	DCL_OPEN_RETRY_MS	10
 
+/* A receive-time pass skips the pool walk below this many blocks. */
+static uint64_t zfs_clonedup_recv_min_blocks = 0;
+
 /*
  * Debug: skip the wait for the previous txg before reading the source
  * bps.  That wait makes a writer still holding that txg visible;
@@ -1297,6 +1303,9 @@ static uint_t zfs_clonedup_apply_flush_delay = 0;
 
 /* Debug: sleep this many ms holding a batch's transaction open. */
 static uint_t zfs_clonedup_apply_commit_delay = 0;
+
+/* Debug: log each dataset an apply worker's cache has to read. */
+static int zfs_clonedup_dscache_log = 0;
 
 /*
  * How long an administrative operation waits for the apply thread to
@@ -1785,6 +1794,11 @@ dsl_clonedup_ds_info(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 		return (c->dc_err);
 	}
 	err = dsl_clonedup_ds_info_read(dp, dsobj, di);
+	if (zfs_clonedup_dscache_log) {
+		zfs_dbgmsg("clonedup: %s: dataset %llu missed the "
+		    "apply cache", spa_name(dp->dp_spa),
+		    (u_longlong_t)dsobj);
+	}
 	if (avl_numnodes(&w->dcw_dscache) < DCL_DSINFO_MAX) {
 		c = kmem_alloc(sizeof (*c), KM_SLEEP);
 		c->dc_dsobj = dsobj;
@@ -1840,6 +1854,10 @@ dsl_clonedup_hold_begin(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 {
 	boolean_t waited = B_FALSE;
 
+	if (dcl->dcl_recv_os != NULL) {
+		*heldp = dsobj;
+		return (0);
+	}
 	mutex_enter(&dcl->dcl_yield_lock);
 	while (dcl->dcl_yield_pause != 0) {
 		if (dsl_clonedup_stop(dcl, dcl->dcl_zthr)) {
@@ -2228,8 +2246,15 @@ dsl_clonedup_dst_hold(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 			return (err);
 	}
 	for (tries = 0; ; tries++) {
-		err = zfs_clonedup_dst_open(dcl->dcl_dp->dp_spa,
-		    dsobj, object, &w->dcw_dst);
+		if (dcl->dcl_recv_os != NULL &&
+		    dsobj == dcl->dcl_recv_dsobj) {
+			err = zfs_clonedup_dst_wrap(dcl->dcl_recv_os,
+			    object, &w->dcw_dst);
+		} else {
+			err = zfs_clonedup_dst_open(
+			    dcl->dcl_dp->dp_spa, dsobj, object,
+			    &w->dcw_dst);
+		}
 		/*
 		 * The hold is dropped for the wait: the operation
 		 * that answered EBUSY may be waiting for it.
@@ -2265,7 +2290,8 @@ static void
 dsl_clonedup_yield_release(dsl_clonedup_t *dcl,
     dsl_clonedup_worker_t *w)
 {
-	if (!dsl_clonedup_yield_pending(dcl))
+	if (dcl->dcl_recv_os != NULL ||
+	    !dsl_clonedup_yield_pending(dcl))
 		return;
 	dsl_clonedup_batch_flush(dcl, w);
 	dsl_clonedup_dst_rele(dcl, w);
@@ -3054,7 +3080,8 @@ redo:
 			}
 		}
 		if (di.di_snapshot || di.di_mode != ZFS_CLONEDUP_ON ||
-		    di.di_inconsistent) {
+		    (di.di_inconsistent &&
+		    dsobj != dcl->dcl_recv_dsobj)) {
 			st.s_policy++;
 			continue;
 		}
@@ -3504,7 +3531,12 @@ dsl_clonedup_apply_check(void *arg, zthr_t *zthr)
 		return (B_FALSE);
 
 	mutex_enter(&dcl->dcl_lock);
-	work = dcl->dcl_phys.dclp_state == DSS_SCANNING &&
+	/*
+	 * A receive drives the apply itself, on the same worker, so
+	 * the thread must stay out of it until dcl_recv_os is clear.
+	 */
+	work = dcl->dcl_recv_os == NULL &&
+	    dcl->dcl_phys.dclp_state == DSS_SCANNING &&
 	    dcl->dcl_phys.dclp_phase == POOL_CLONEDUP_APPLY &&
 	    dcl->dcl_index_active && dcl->dcl_nentries > 0;
 	mutex_exit(&dcl->dcl_lock);
@@ -3679,7 +3711,7 @@ dsl_clonedup_apply_thread(void *arg, zthr_t *zthr)
 	dsl_clonedup_t *dcl = dp->dp_clonedup;
 
 	mutex_enter(&dcl->dcl_lock);
-	if (!dcl->dcl_index_active ||
+	if (dcl->dcl_recv_os != NULL || !dcl->dcl_index_active ||
 	    dcl->dcl_phys.dclp_phase != POOL_CLONEDUP_APPLY) {
 		mutex_exit(&dcl->dcl_lock);
 		return;
@@ -3695,12 +3727,254 @@ dsl_clonedup_apply_thread(void *arg, zthr_t *zthr)
 	mutex_exit(&dcl->dcl_lock);
 }
 
+/*
+ * The pass a receive runs between its last record and its snapshot.
+ * Only the blocks the receive wrote are indexed.  Without 'match'
+ * they are cloned onto each other alone; with it everything else on
+ * the pool is a possible source too, whatever its birth.  The receive
+ * owns the dataset, so no handle is opened for it and the yield
+ * handshake is not used.  The walk reads the dataset's on-disk tree,
+ * which names the received blocks only once they have synced.
+ * Nothing here reaches the disk but the clones: the pool-wide record
+ * is saved and put back.
+ */
+typedef struct dsl_clonedup_recv_arg {
+	dsl_clonedup_t		*ra_dcl;
+	uint64_t		ra_objset;	/* ra_di's dataset */
+	dsl_clonedup_dsinfo_t	ra_di;
+	boolean_t		ra_skip;
+} dsl_clonedup_recv_arg_t;
+
+static int
+dsl_clonedup_recv_index_cb(spa_t *spa, zilog_t *zilog,
+    const blkptr_t *bp,
+    const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
+{
+	(void) zilog;
+	dsl_clonedup_recv_arg_t *ra = arg;
+
+	if (bp == NULL || !dsl_clonedup_bp_eligible(spa, bp, dnp, zb))
+		return (0);
+	dsl_clonedup_visit(ra->ra_dcl, bp, zb, dnp,
+	    brt_maybe_exists(spa, bp) ? DCE_F_MAYBE_SHARED : 0);
+	return (0);
+}
+
+static int
+dsl_clonedup_recv_match_cb(spa_t *spa, zilog_t *zilog,
+    const blkptr_t *bp,
+    const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
+{
+	(void) zilog;
+	dsl_clonedup_recv_arg_t *ra = arg;
+	dsl_clonedup_t *dcl = ra->ra_dcl;
+	uint8_t flags = 0;
+
+	if (bp == NULL || zb->zb_objset == 0 ||
+	    zb->zb_objset == dcl->dcl_recv_dsobj)
+		return (0);
+	if (!dsl_clonedup_bp_eligible(spa, bp, dnp, zb))
+		return (0);
+	if (zb->zb_objset != ra->ra_objset) {
+		ra->ra_objset = zb->zb_objset;
+		ra->ra_skip = dsl_clonedup_ds_info(dcl, &dcl->dcl_w,
+		    zb->zb_objset, &ra->ra_di) != 0 ||
+		    ra->ra_di.di_mode == ZFS_CLONEDUP_OFF ||
+		    ra->ra_di.di_inconsistent;
+	}
+	if (ra->ra_skip)
+		return (0);
+	if (ra->ra_di.di_snapshot ||
+	    BP_GET_PHYSICAL_BIRTH(bp) <= ra->ra_di.di_prev_snap_txg)
+		flags |= DCE_F_SNAPHELD;
+	if (ra->ra_di.di_mode == ZFS_CLONEDUP_SOURCE)
+		flags |= DCE_F_SRCONLY;
+	if (brt_maybe_exists(spa, bp))
+		flags |= DCE_F_MAYBE_SHARED;
+	dsl_clonedup_visit(dcl, bp, zb, dnp, flags);
+	return (0);
+}
+
+/* In syncing context, so a scan's setup cannot come in between. */
+static int
+dsl_clonedup_recv_claim_check(void *arg, dmu_tx_t *tx)
+{
+	(void) arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_clonedup_t *dcl = dp->dp_clonedup;
+	int err = 0;
+
+	if (dsl_scan_clonedup_scanning(dp))
+		return (SET_ERROR(EBUSY));
+	mutex_enter(&dcl->dcl_lock);
+	if (dcl->dcl_index_active || dcl->dcl_recv_os != NULL ||
+	    dcl->dcl_zthr != NULL)
+		err = SET_ERROR(EBUSY);
+	mutex_exit(&dcl->dcl_lock);
+	return (err);
+}
+
+static void
+dsl_clonedup_recv_claim_sync(void *arg, dmu_tx_t *tx)
+{
+	objset_t *os = arg;
+	dsl_clonedup_t *dcl = dmu_tx_pool(tx)->dp_clonedup;
+
+	mutex_enter(&dcl->dcl_lock);
+	dcl->dcl_recv_os = os;
+	dcl->dcl_recv_dsobj = dmu_objset_id(os);
+	mutex_exit(&dcl->dcl_lock);
+}
+
+boolean_t
+dsl_clonedup_recv_active(dsl_pool_t *dp)
+{
+	dsl_clonedup_t *dcl = dp->dp_clonedup;
+	boolean_t active;
+
+	if (dcl == NULL)
+		return (B_FALSE);
+	mutex_enter(&dcl->dcl_lock);
+	active = dcl->dcl_recv_os != NULL;
+	mutex_exit(&dcl->dcl_lock);
+	return (active);
+}
+
+int
+dsl_clonedup_recv(dsl_pool_t *dp, dsl_dataset_t *ds, boolean_t match,
+    uint64_t *clonedp, uint64_t *savedp)
+{
+	dsl_clonedup_t *dcl = dp->dp_clonedup;
+	spa_t *spa = dp->dp_spa;
+	dsl_clonedup_phys_t saved, *p;
+	dsl_clonedup_recv_arg_t ra;
+	dsl_clonedup_dsinfo_t di;
+	dsl_clonedup_next_t next;
+	objset_t *os;
+	uint64_t min_txg, unused;
+	int err;
+
+	*clonedp = 0;
+	*savedp = 0;
+	if (dcl == NULL || !zfs_clonedup_apply_enabled)
+		return (SET_ERROR(ENOTSUP));
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_BLOCK_CLONING))
+		return (SET_ERROR(ENOTSUP));
+	dsl_pool_config_enter(dp, FTAG);
+	err = dmu_objset_from_ds(ds, &os);
+	dsl_pool_config_exit(dp, FTAG);
+	if (err != 0)
+		return (err);
+	if (os->os_encrypted)
+		return (SET_ERROR(ENOTSUP));
+	if (dsl_clonedup_ds_info_read(dp, ds->ds_object, &di) != 0 ||
+	    di.di_mode == ZFS_CLONEDUP_OFF)
+		return (SET_ERROR(ENOTSUP));
+	err = dsl_sync_task(spa_name(spa),
+	    dsl_clonedup_recv_claim_check,
+	    dsl_clonedup_recv_claim_sync, os, 0,
+	    ZFS_SPACE_CHECK_NONE);
+	if (err != 0)
+		return (err);
+
+	txg_wait_synced(dp, 0);
+
+	mutex_enter(&dcl->dcl_lock);
+	p = &dcl->dcl_phys;
+	saved = *p;
+	min_txg = dsl_dataset_phys(ds)->ds_creation_txg - 1;
+	memset(p, 0, sizeof (*p));
+	p->dclp_version = DSL_CLONEDUP_PHYS_VERSION;
+	p->dclp_last_txg = saved.dclp_last_txg;
+	p->dclp_state = DSS_SCANNING;
+	p->dclp_phase = POOL_CLONEDUP_INDEX;
+	p->dclp_min_txg = min_txg;
+	p->dclp_max_txg = spa_last_synced_txg(spa);
+	p->dclp_start_time = gethrestime_sec();
+	dcl->dcl_w.dcw_group_src_valid = B_FALSE;
+	dcl->dcl_dbg_left = 16;
+	DCL_BUMP(dcl, DCK_INDEX_WALKS, 1);
+	dsl_clonedup_index_create(dcl);
+	mutex_exit(&dcl->dcl_lock);
+	DCL_BUMP(dcl, DCK_RECV_RUNS, 1);
+
+	memset(&ra, 0, sizeof (ra));
+	ra.ra_dcl = dcl;
+	for (;;) {
+		err = traverse_dataset(ds, min_txg,
+		    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA,
+		    dsl_clonedup_recv_index_cb, &ra);
+		if (err != 0)
+			break;
+		mutex_enter(&dcl->dcl_lock);
+		if (dcl->dcl_nentries == 0 || dcl->dcl_nentries <
+		    zfs_clonedup_recv_min_blocks) {
+			next = dsl_clonedup_partition_done_locked(dcl,
+			    &unused);
+			mutex_exit(&dcl->dcl_lock);
+			if (next == DCLN_WALK)
+				continue;
+			break;
+		}
+		if (match) {
+			p->dclp_phase = POOL_CLONEDUP_MATCH;
+			DCL_BUMP(dcl, DCK_MATCH_WALKS, 1);
+			mutex_exit(&dcl->dcl_lock);
+
+			ra.ra_objset = 0;
+			ra.ra_skip = B_FALSE;
+			err = traverse_pool(spa, 0,
+			    TRAVERSE_PRE | TRAVERSE_NO_DECRYPT |
+			    TRAVERSE_PREFETCH_METADATA,
+			    dsl_clonedup_recv_match_cb, &ra);
+			if (err != 0)
+				break;
+			mutex_enter(&dcl->dcl_lock);
+		}
+		p->dclp_phase = POOL_CLONEDUP_APPLY;
+		dcl->dcl_apply_total = dcl->dcl_nentries;
+		dcl->dcl_w.dcw_gen = dcl->dcl_gen;
+		dcl->dcl_apply_stop = B_FALSE;
+		mutex_exit(&dcl->dcl_lock);
+		dsl_clonedup_apply_groups(dcl, &dcl->dcl_w, NULL);
+
+		mutex_enter(&dcl->dcl_lock);
+		next = dsl_clonedup_partition_done_locked(dcl,
+		    &unused);
+		mutex_exit(&dcl->dcl_lock);
+		if (next != DCLN_WALK)
+			break;
+	}
+
+	mutex_enter(&dcl->dcl_lock);
+	*clonedp = p->dclp_applied;
+	*savedp = p->dclp_bytes_saved + p->dclp_bytes_saved_snapheld;
+	zfs_dbgmsg("clonedup: receive into %llu on %s: %llu blocks "
+	    "indexed, %llu candidates, %llu cloned, %llu bytes, "
+	    "err %d",
+	    (u_longlong_t)ds->ds_object, spa_name(spa),
+	    (u_longlong_t)p->dclp_blocks_indexed,
+	    (u_longlong_t)p->dclp_candidates, (u_longlong_t)*clonedp,
+	    (u_longlong_t)*savedp, err);
+	dsl_clonedup_index_destroy(dcl);
+	*p = saved;
+	dcl->dcl_apply_total = 0;
+	dcl->dcl_recv_os = NULL;
+	dcl->dcl_recv_dsobj = 0;
+	mutex_exit(&dcl->dcl_lock);
+	return (err);
+}
+
 void
 dsl_clonedup_apply_wakeup(spa_t *spa)
 {
 	if (spa->spa_clonedup_apply_zthr != NULL)
 		zthr_wakeup(spa->spa_clonedup_apply_zthr);
 }
+
+ZFS_MODULE_PARAM(zfs_clonedup, zfs_clonedup_, recv_min_blocks, U64,
+	ZMOD_RW,
+	"Received blocks below which a receive skips the pass");
 
 ZFS_MODULE_PARAM(zfs_clonedup, zfs_clonedup_, scan_mem_lim_fact,
 	UINT, ZMOD_RW,
@@ -3763,6 +4037,9 @@ ZFS_MODULE_PARAM(zfs_clonedup, zfs_clonedup_, apply_flush_delay, UINT,
 ZFS_MODULE_PARAM(zfs_clonedup, zfs_clonedup_, apply_commit_delay,
 	UINT, ZMOD_RW,
 	"Debug: ms to hold a batch's transaction open");
+
+ZFS_MODULE_PARAM(zfs_clonedup, zfs_clonedup_, dscache_log, INT,
+	ZMOD_RW, "Debug: log each dataset the apply cache reads");
 
 ZFS_MODULE_PARAM(zfs_clonedup, zfs_clonedup_, yield_timeout_ms, UINT,
 	ZMOD_RW, "ms an admin operation waits for the apply thread");

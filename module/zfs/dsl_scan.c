@@ -1035,6 +1035,9 @@ dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 	if (vdev_rebuild_active(rvd) ||
 	    dsl_errorscrubbing(scn->scn_dp))
 		return (SET_ERROR(EBUSY));
+	if (ssa->func == POOL_SCAN_CLONEDUP &&
+	    dsl_clonedup_recv_active(scn->scn_dp))
+		return (SET_ERROR(EBUSY));
 
 	return (0);
 }

@@ -938,6 +938,12 @@ typedef struct recvflags {
 
 	/* use this recv to check (and heal if needed) an existing snapshot */
 	boolean_t heal;
+
+	/* clonedup received blocks before taking the snapshot (-k) */
+	boolean_t clonedup;
+
+	/* match them against the rest of the pool as well (-K) */
+	boolean_t clonedup_match;
 } recvflags_t;
 
 _LIBZFS_H int zfs_receive(libzfs_handle_t *, const char *, nvlist_t *,

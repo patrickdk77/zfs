@@ -521,6 +521,15 @@ zfs_clonedup_dst_exclusive(zfs_clonedup_dst_t *dst)
 }
 
 int
+zfs_clonedup_dst_wrap(objset_t *os, uint64_t object,
+    zfs_clonedup_dst_t **dstp)
+{
+	(void) os, (void) object;
+	*dstp = NULL;
+	return (SET_ERROR(ENOTSUP));
+}
+
+int
 zfs_clonedup_dst_prepare(zfs_clonedup_dst_t *dst, uint64_t blkid,
     const blkptr_t *dexp, objset_t *sos, boolean_t nowait,
     boolean_t *readyp, void **lockp, zfs_clonedup_result_t *resp)

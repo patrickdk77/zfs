@@ -4460,6 +4460,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	boolean_t newprops = B_FALSE;
 	uint64_t read_bytes = 0;
 	uint64_t errflags = 0;
+	uint64_t cd_cloned = 0, cd_saved = 0;
+	int cd_skipped = 0;
 	uint64_t parent_snapguid = 0;
 	prop_changelist_t *clp = NULL;
 	nvlist_t *snapprops_nvlist = NULL;
@@ -5073,6 +5075,13 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		    oxprops, wkeydata, wkeylen, origin, flags->force,
 		    flags->heal, flags->resumable, raw, infd, drr_noswap, -1,
 		    &read_bytes, &errflags, NULL, &prop_errors);
+	} else if (flags->clonedup) {
+		err = ioctl_err = lzc_receive_with_clonedup(destsnap,
+		    rcvprops, oxprops, wkeydata, wkeylen, origin,
+		    flags->force, B_FALSE, flags->resumable, raw,
+		    B_TRUE, flags->clonedup_match, infd, drr_noswap,
+		    -1, &read_bytes, &errflags, NULL, &cd_cloned,
+		    &cd_saved, &cd_skipped, &prop_errors);
 	} else {
 		err = ioctl_err = lzc_receive_with_cmdprops(destsnap, rcvprops,
 		    oxprops, wkeydata, wkeylen, origin, flags->force,
@@ -5435,6 +5444,19 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 
 		(void) printf("received %s stream in %.2f seconds (%s/sec)\n",
 		    buf1, delta_f, buf2);
+		if (flags->clonedup && cd_skipped != 0) {
+			(void) printf("clonedup: pass skipped: %s\n",
+			    cd_skipped == EBUSY ?
+			    "a clonedup run or another receive's "
+			    "pass is active" : cd_skipped == ENOTSUP ?
+			    "the stream or the dataset is not "
+			    "eligible" : strerror(cd_skipped));
+		} else if (flags->clonedup) {
+			zfs_nicebytes(cd_saved, buf1, sizeof (buf1));
+			(void) printf("clonedup: %llu blocks cloned, "
+			    "%s saved\n", (u_longlong_t)cd_cloned,
+			    buf1);
+		}
 	}
 
 	err = 0;

@@ -300,10 +300,11 @@ get_usage(zfs_help_t idx)
 	case HELP_PROMOTE:
 		return ("\tpromote <clone-filesystem>\n");
 	case HELP_RECEIVE:
-		return ("\treceive [-vMnsFhu] "
+		return ("\treceive [-vMnsFhu] [-k|-K] "
 		    "[-o <property>=<value>] ... [-x <property>] ...\n"
 		    "\t    <filesystem|volume|snapshot>\n"
-		    "\treceive [-vMnsFhu] [-o <property>=<value>] ... "
+		    "\treceive [-vMnsFhu] [-k|-K] "
+		    "[-o <property>=<value>] ... "
 		    "[-x <property>] ... \n"
 		    "\t    [-d | -e] <filesystem>\n"
 		    "\treceive -A <filesystem|volume>\n");
@@ -5173,7 +5174,7 @@ zfs_do_receive(int argc, char **argv)
 		nomem();
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":o:x:dehMnuvFsAc")) != -1) {
+	while ((c = getopt(argc, argv, ":o:x:dehMnuvFsAckK")) != -1) {
 		switch (c) {
 		case 'o':
 			if (!parseprop(props, optarg)) {
@@ -5232,6 +5233,13 @@ zfs_do_receive(int argc, char **argv)
 		case 'c':
 			flags.heal = B_TRUE;
 			break;
+		case 'k':
+			flags.clonedup = B_TRUE;
+			break;
+		case 'K':
+			flags.clonedup = B_TRUE;
+			flags.clonedup_match = B_TRUE;
+			break;
 		case ':':
 			(void) fprintf(stderr, "missing argument for "
 			    "'%c' option\n", optopt);
@@ -5250,6 +5258,12 @@ zfs_do_receive(int argc, char **argv)
 	/* zfs recv -e (use "tail" name) implies -d (remove dataset "head") */
 	if (flags.istail)
 		flags.isprefix = B_TRUE;
+
+	if (flags.clonedup && flags.heal) {
+		(void) fprintf(stderr,
+		    "-k and -K cannot be used with -c\n");
+		usage(B_FALSE);
+	}
 
 	/* check number of arguments */
 	if (argc < 1) {
