@@ -161,6 +161,7 @@ typedef enum dsl_clonedup_kstat_id {
 	DCK_DST_ZVOL,		/* destinations opened as volumes */
 	DCK_DST_OWNED,		/* destinations opened by ownership */
 	DCK_BATCHES,		/* transactions carrying clones */
+	DCK_RECV_RUNS,		/* passes run after a receive */
 	DCK_KEY_COLLISIONS,	/* key matched, checksum did not */
 	DCK_CKSUM_COLLISIONS,	/* checksum matched, data did not */
 	DCK_COPIES_MISMATCH,	/* declined: unequal DVA counts */
@@ -290,6 +291,10 @@ typedef struct dsl_clonedup {
 	uint64_t	dcl_splits;
 	dsl_clonedup_filter_t *dcl_filter;
 
+	/* a receive-time pass owns the index while these are set */
+	objset_t	*dcl_recv_os;
+	uint64_t	dcl_recv_dsobj;
+
 	/*
 	 * What one apply worker holds while it works: its batch, the
 	 * handles it has open and the source it picked for a split
@@ -351,6 +356,8 @@ typedef enum zfs_clonedup_result {
  * object of a dataset the apply thread owns.
  */
 typedef struct zfs_clonedup_dst zfs_clonedup_dst_t;
+int zfs_clonedup_dst_wrap(objset_t *os, uint64_t object,
+    zfs_clonedup_dst_t **dstp);
 int zfs_clonedup_dst_open(spa_t *spa, uint64_t dsobj, uint64_t object,
     zfs_clonedup_dst_t **dstp);
 void zfs_clonedup_dst_close(zfs_clonedup_dst_t *dst);
@@ -410,6 +417,9 @@ boolean_t dsl_clonedup_bp_same_block(const blkptr_t *a,
 boolean_t dsl_clonedup_apply_check(void *arg, struct zthr *zthr);
 void dsl_clonedup_apply_thread(void *arg, struct zthr *zthr);
 void dsl_clonedup_apply_wakeup(spa_t *spa);
+int dsl_clonedup_recv(struct dsl_pool *dp, struct dsl_dataset *ds,
+    boolean_t match, uint64_t *clonedp, uint64_t *savedp);
+boolean_t dsl_clonedup_recv_active(struct dsl_pool *dp);
 dsl_clonedup_next_t dsl_clonedup_partition_done(dsl_clonedup_t *dcl,
     uint64_t *min_txgp, dmu_tx_t *tx);
 void dsl_clonedup_yield_begin(spa_t *spa);

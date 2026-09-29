@@ -260,6 +260,28 @@ function clonedup_check_shared # ds1 file1 ds2 file2 expected [key]
 	log_must [ "$got" = "$5" ]
 }
 
+# Assert a file's blocks are shared with several copies taken
+# together.  Where a group holds more than one verified-identical
+# copy, which one becomes the source is not fixed, so the copy a
+# block lands on cannot be asserted; that every block lands on one of
+# them can.
+function clonedup_check_shared_any # ds file expected [ds1 file1]...
+{
+	typeset dds=$1 df=$2 want=$3
+	typeset got=""
+
+	shift 3
+	while (( $# >= 2 )); do
+		got="$got $(clonedup_shared "$1" "$2" "$dds" "$df")"
+		shift 2
+	done
+	got=$(echo $(printf '%s\n' $got | sort -n | uniq))
+	log_note "blocks of $df shared with any copy:" \
+	    "'$got' (want '$want')"
+	[[ "$got" = "$want" ]] || clonedup_dump_stats
+	log_must [ "$got" = "$want" ]
+}
+
 # The L0 block addresses of a volume's data object, one per line,
 # indexed from 0.  zdb takes the dataset name and object 1; naming
 # the pool alone would dump the meta-objset instead.

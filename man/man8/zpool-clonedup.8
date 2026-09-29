@@ -172,6 +172,11 @@ replaces a running quick
 .Pq Fl q
 or default run, and a default run replaces a quick one.
 A request of equal or lower rank fails with EBUSY.
+While a
+.Nm zfs Cm receive Fl k
+or
+.Fl K
+pass is running, a request to start a run fails with EBUSY.
 .Pp
 A run needs the
 .Sy clonedup
@@ -195,6 +200,10 @@ space as held by snapshots, which changes every dataset since its last
 snapshot: the next incremental receive needs
 .Fl F ,
 and its rollback discards the redirects.
+On such a pool,
+.Nm zfs Cm receive Fl K
+runs the pass on the received blocks before the snapshot is taken
+.Pq see Xr zfs-receive 8 .
 .Bl -tag -width "-a"
 .It Fl a
 Run on all pools.

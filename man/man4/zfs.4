@@ -2415,6 +2415,14 @@ In both sorted modes, when the chosen source has gone stale, the apply
 skips those candidates instead of falling back to another copy, and the
 next run finds them again.
 .
+.It Sy zfs_clonedup_recv_min_blocks Ns = Ns Sy 0 Pq u64
+A receive with
+.Fl k
+or
+.Fl K
+that wrote fewer blocks than this skips the pool walk and clones nothing.
+Zero runs the pass for every receive.
+.
 .It Sy zfs_clonedup_apply_blocks_per_txg Ns = Ns Sy 8192 Pq uint
 The most blocks the apply workers together clone or punch in one
 transaction group.
@@ -2460,6 +2468,11 @@ queued when it stops, to widen race windows in tests.
 Sleep this long between assigning an apply transaction and cloning its
 blocks, which holds its transaction group open, to widen race windows in
 tests.
+.
+.It Sy zfs_clonedup_dscache_log Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Write a dataset's object number to the debug message log each time an
+apply worker reads that dataset's properties into its cache.
+Intended for debugging.
 .
 .It Sy zfs_clonedup_yield_timeout_ms Ns = Ns Sy 10000 Ns ms Pq uint
 How long a destroy, promote, rollback, receive, mount or volume open

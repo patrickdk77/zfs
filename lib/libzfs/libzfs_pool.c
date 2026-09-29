@@ -2972,8 +2972,30 @@ out:
 	return (retval);
 }
 
+static boolean_t
+zpool_scan_resilvering(nvlist_t *nvroot, const pool_scan_stat_t *ps)
+{
+	vdev_rebuild_stat_t *vrs;
+	nvlist_t **child;
+	uint_t c, children, n;
+
+	if (ps != NULL && ps->pss_func == POOL_SCAN_RESILVER &&
+	    ps->pss_state == DSS_SCANNING)
+		return (B_TRUE);
+	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) != 0)
+		return (B_FALSE);
+	for (c = 0; c < children; c++) {
+		if (nvlist_lookup_uint64_array(child[c],
+		    ZPOOL_CONFIG_REBUILD_STATS, (uint64_t **)&vrs,
+		    &n) == 0 && vrs->vrs_state == VDEV_REBUILD_ACTIVE)
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
 static int
-zpool_clonedup_busy(libzfs_handle_t *hdl,
+zpool_clonedup_busy(libzfs_handle_t *hdl, nvlist_t *nvroot,
     const pool_scan_stat_t *ps, uint_t psc, const char *errbuf)
 {
 	uint64_t fl;
@@ -3013,7 +3035,11 @@ zpool_clonedup_busy(libzfs_handle_t *hdl,
 		    EZFS_ERRORSCRUBBING : EZFS_ERRORSCRUB_PAUSED,
 		    errbuf));
 	}
-	return (zfs_error(hdl, EZFS_RESILVERING, errbuf));
+	if (zpool_scan_resilvering(nvroot, ps))
+		return (zfs_error(hdl, EZFS_RESILVERING, errbuf));
+	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+	    "a 'zfs receive -k' or '-K' pass is running"));
+	return (zfs_error(hdl, EZFS_BUSY, errbuf));
 }
 
 /*
@@ -3144,8 +3170,8 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &psc);
 		if (func == POOL_SCAN_CLONEDUP) {
-			return (zpool_clonedup_busy(hdl, ps, psc,
-			    errbuf));
+			return (zpool_clonedup_busy(hdl, nvroot, ps,
+			    psc, errbuf));
 		}
 		if (ps && ps->pss_func == POOL_SCAN_SCRUB &&
 		    ps->pss_state == DSS_SCANNING) {
