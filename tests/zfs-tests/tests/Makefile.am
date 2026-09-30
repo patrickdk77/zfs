@@ -539,6 +539,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/block_cloning_disabled_ficlonerange.ksh \
 	functional/block_cloning/block_cloning_disabled_fideduperange.ksh \
 	functional/block_cloning/block_cloning_ficlone.ksh \
+	functional/block_cloning/block_cloning_ficlone_short_error.ksh \
 	functional/block_cloning/block_cloning_ficlonerange.ksh \
 	functional/block_cloning/block_cloning_ficlonerange_partial.ksh \
 	functional/block_cloning/block_cloning_fideduperange.ksh \

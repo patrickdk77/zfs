@@ -105,6 +105,28 @@ zpl_clone_file_range_impl(struct file *src_file, loff_t src_off,
 }
 
 #if defined(HAVE_VFS_REMAP_FILE_RANGE) || \
+	defined(HAVE_VFS_CLONE_FILE_RANGE)
+static ssize_t
+zpl_clone_file_range_all(struct file *src_file, loff_t src_off,
+    struct file *dst_file, loff_t dst_off, size_t len)
+{
+	size_t done = 0;
+
+	while (done < len) {
+		ssize_t ret = zpl_clone_file_range_impl(src_file,
+		    src_off + done, dst_file, dst_off + done, len - done);
+		if (ret < 0)
+			return (ret);
+		if (ret == 0)
+			return (-EINVAL);
+		done += ret;
+	}
+
+	return (done);
+}
+#endif
+
+#if defined(HAVE_VFS_REMAP_FILE_RANGE) || \
 	defined(HAVE_VFS_DEDUPE_FILE_RANGE)
 /*
  * Logic shared by the FIDEDUPERANGE entry points.  Compare len bytes at
@@ -240,13 +262,12 @@ zpl_remap_file_range(struct file *src_file, loff_t src_off,
 	if (len == 0)
 		len = i_size_read(file_inode(src_file)) - src_off;
 
-	ssize_t ret = zpl_clone_file_range_impl(src_file, src_off,
-	    dst_file, dst_off, len);
+	if (!(flags & REMAP_FILE_CAN_SHORTEN))
+		return (zpl_clone_file_range_all(src_file, src_off,
+		    dst_file, dst_off, len));
 
-	if (!(flags & REMAP_FILE_CAN_SHORTEN) && ret >= 0 && ret != len)
-		ret = -EINVAL;
-
-	return (ret);
+	return (zpl_clone_file_range_impl(src_file, src_off,
+	    dst_file, dst_off, len));
 }
 #endif /* HAVE_VFS_REMAP_FILE_RANGE */
 
@@ -263,13 +284,8 @@ zpl_clone_file_range(struct file *src_file, loff_t src_off,
 		len = i_size_read(file_inode(src_file)) - src_off;
 
 	/* The entire length must be cloned or this is an error. */
-	ssize_t ret = zpl_clone_file_range_impl(src_file, src_off,
-	    dst_file, dst_off, len);
-
-	if (ret >= 0 && ret != len)
-		ret = -EINVAL;
-
-	return (ret);
+	return (zpl_clone_file_range_all(src_file, src_off,
+	    dst_file, dst_off, len));
 }
 #endif /* HAVE_VFS_CLONE_FILE_RANGE */
 
