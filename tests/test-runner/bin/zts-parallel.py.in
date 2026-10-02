@@ -83,14 +83,6 @@ def section_text(name, body, tests):
         lambda m: 'tests = [%s]' % names, body, count=1))
 
 
-def with_outputdir(head, outdir):
-    lines = [x for x in head.split('\n')
-             if not x.startswith('outputdir')]
-    i = lines.index('[DEFAULT]') + 1
-    lines.insert(i, 'outputdir = %s' % outdir)
-    return '\n'.join(lines)
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--runfiles', required=True)
@@ -98,7 +90,6 @@ def main():
     ap.add_argument('--tags', default='functional')
     ap.add_argument('--runners', default='auto')
     ap.add_argument('--outdir', required=True)
-    ap.add_argument('--results', default='/var/tmp/test_results')
     a = ap.parse_args()
 
     if a.runners == 'auto':
@@ -144,11 +135,9 @@ def main():
             if not secs_out:
                 continue
             tag = 'serial' if i == runners else 'par-%d' % (i + 1)
-            res = a.results if i == runners else \
-                '%s-%s' % (a.results, tag)
             f = os.path.join(a.outdir, '%s.%s' % (tag, base))
             with open(f, 'w') as fh:
-                fh.write(with_outputdir(head, res))
+                fh.write(head)
                 fh.write('\n'.join(secs_out))
             lists[i].append(f)
     for i in range(runners + 1):
