@@ -1,0 +1,1758 @@
+# test	class	seconds	reason
+tests/functional/acl/off/dosmode	S	1	group:users,users
+tests/functional/acl/off/posixmode	S	1	group:users,users
+tests/functional/acl/posix-sa:Linux/posix_001_pos	S	0	group:users,users
+tests/functional/acl/posix-sa:Linux/posix_002_pos	S	0	group:users,users
+tests/functional/acl/posix-sa:Linux/posix_003_pos	S	0	group:users
+tests/functional/acl/posix-sa:Linux/posix_004_pos	S	0	group:users,users
+tests/functional/acl/posix:Linux/posix_001_pos	S	0	group:users,users
+tests/functional/acl/posix:Linux/posix_002_pos	S	0	group:users,users
+tests/functional/acl/posix:Linux/posix_003_pos	S	0	group:users
+tests/functional/acl/posix:Linux/posix_004_pos	S	0	group:users,users
+tests/functional/acl/posix:Linux/posix_005_pos	S	0	group:users,users
+tests/functional/alloc_class/alloc_class_001_pos	S	2	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_002_neg	S	4	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_003_pos	S	0	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_004_pos	S	0	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_005_pos	S	0	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_006_pos	S	0	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_007_pos	S	10	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_008_pos	S	0	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_009_pos	S	10	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_010_pos	S	0	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_011_neg	S	0	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_012_pos	S	94	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_013_pos	S	19	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_014_pos	S	1	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_015_neg	S	0	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_016_pos	S	0	group:all-pools command,all-pools command
+tests/functional/alloc_class/alloc_class_017_pos	S	30	group:all-pools command,all-pools command
+tests/functional/append/file_append	P	0	-
+tests/functional/append/threadsappend_001_pos	P	0	-
+tests/functional/arc/arcstats_runtime_tuning	S	0	group:tunable,tunable
+tests/functional/arc/dbufstats_001_pos	S	0	group:tunable,kstat
+tests/functional/arc/dbufstats_002_pos	S	0	group:tunable,kstat
+tests/functional/arc/dbufstats_003_pos	S	0	group:tunable,kstat
+tests/functional/atime/atime_001_pos	P	10	-
+tests/functional/atime/atime_002_neg	P	6	-
+tests/functional/atime/atime_003_pos	P	10	-
+tests/functional/atime/root_atime_off	P	6	-
+tests/functional/atime/root_atime_on	P	10	-
+tests/functional/atime/root_relatime_on	P	10	-
+tests/functional/bclone/bclone_crossfs_corner_cases_limited	P	142	-
+tests/functional/bclone/bclone_crossfs_data	P	28	-
+tests/functional/bclone/bclone_crossfs_embedded	P	11	-
+tests/functional/bclone/bclone_crossfs_hole	P	20	-
+tests/functional/bclone/bclone_diffprops_all	S	6	tunable
+tests/functional/bclone/bclone_diffprops_checksum	S	131	tunable
+tests/functional/bclone/bclone_diffprops_compress	S	47	tunable
+tests/functional/bclone/bclone_diffprops_copies	S	14	tunable
+tests/functional/bclone/bclone_diffprops_recordsize	S	22	tunable
+tests/functional/bclone/bclone_prop_sync	P	17	-
+tests/functional/bclone/bclone_samefs_corner_cases_limited	P	159	-
+tests/functional/bclone/bclone_samefs_data	P	29	-
+tests/functional/bclone/bclone_samefs_embedded	P	12	-
+tests/functional/bclone/bclone_samefs_hole	P	22	-
+tests/functional/block_cloning/block_cloning_after_device_removal	P	1	-
+tests/functional/block_cloning/block_cloning_after_trunc	P	14	-
+tests/functional/block_cloning/block_cloning_clone_mmap_cached	P	9	-
+tests/functional/block_cloning/block_cloning_clone_mmap_write	P	6	-
+tests/functional/block_cloning/block_cloning_copyfilerange	P	2	-
+tests/functional/block_cloning/block_cloning_copyfilerange_cross_dataset	P	2	-
+tests/functional/block_cloning/block_cloning_copyfilerange_fallback	P	6	-
+tests/functional/block_cloning/block_cloning_copyfilerange_fallback_same_txg	S	4	tunable
+tests/functional/block_cloning/block_cloning_copyfilerange_partial	P	4	-
+tests/functional/block_cloning/block_cloning_cross_enc_dataset	P	25	-
+tests/functional/block_cloning/block_cloning_disabled_copyfilerange	P	2	-
+tests/functional/block_cloning/block_cloning_large_offset	P	5	-
+tests/functional/block_cloning/block_cloning_lwb_buffer_overflow	P	4	-
+tests/functional/block_cloning/block_cloning_replay	P	10	-
+tests/functional/block_cloning/block_cloning_replay_encrypted	P	11	-
+tests/functional/block_cloning/block_cloning_rlimit_fsize	P	0	-
+tests/functional/block_cloning:FreeBSD/block_cloning_copyfilerange_clone	P	2	-
+tests/functional/block_cloning:FreeBSD/block_cloning_copyfilerange_clone_partial	P	4	-
+tests/functional/block_cloning:FreeBSD/block_cloning_disabled_copyfilerange_clone	P	0	-
+tests/functional/block_cloning:Linux/block_cloning_disabled_ficlone	P	0	-
+tests/functional/block_cloning:Linux/block_cloning_disabled_ficlonerange	P	0	-
+tests/functional/block_cloning:Linux/block_cloning_disabled_fideduperange	P	0	-
+tests/functional/block_cloning:Linux/block_cloning_ficlone	P	2	-
+tests/functional/block_cloning:Linux/block_cloning_ficlonerange	P	2	-
+tests/functional/block_cloning:Linux/block_cloning_ficlonerange_partial	P	4	-
+tests/functional/block_cloning:Linux/block_cloning_fideduperange	P	4	-
+tests/functional/block_cloning:Linux/block_cloning_fideduperange_blksz	P	2	-
+tests/functional/block_cloning:Linux/block_cloning_fideduperange_compress	P	4	-
+tests/functional/block_cloning:Linux/block_cloning_fideduperange_differs	P	2	-
+tests/functional/block_cloning:Linux/block_cloning_fideduperange_eof	P	2	-
+tests/functional/block_cloning:Linux/block_cloning_fideduperange_mtime	P	4	-
+tests/functional/block_cloning:Linux/block_cloning_fideduperange_partial	P	2	-
+tests/functional/block_cloning:Linux/block_cloning_fideduperange_replay	P	2	-
+tests/functional/block_cloning:Linux/block_cloning_fideduperange_sparse	P	0	-
+tests/functional/block_cloning:Linux/block_cloning_fideduperange_subblock	P	2	-
+tests/functional/block_cloning:Linux/block_cloning_fideduperange_tail	P	4	-
+tests/functional/bootfs/bootfs_001_pos	P	0	-
+tests/functional/bootfs/bootfs_002_neg	P	1	-
+tests/functional/bootfs/bootfs_003_pos	P	0	-
+tests/functional/bootfs/bootfs_004_neg	P	0	-
+tests/functional/bootfs/bootfs_005_neg	P	5	-
+tests/functional/bootfs/bootfs_006_pos	P	4	-
+tests/functional/bootfs/bootfs_007_pos	P	0	-
+tests/functional/bootfs/bootfs_008_pos	P	0	-
+tests/functional/btree/btree_negative	P	0	-
+tests/functional/btree/btree_positive	P	180	-
+tests/functional/cache/cache_001_pos	S	9	group:all-pools command,all-pools command
+tests/functional/cache/cache_002_pos	S	9	group:all-pools command,all-pools command
+tests/functional/cache/cache_003_pos	S	10	group:all-pools command,all-pools command
+tests/functional/cache/cache_004_neg	S	1	group:all-pools command,all-pools command
+tests/functional/cache/cache_005_neg	S	1	group:all-pools command,all-pools command
+tests/functional/cache/cache_006_pos	S	21	group:all-pools command,all-pools command
+tests/functional/cache/cache_007_neg	S	0	group:all-pools command,all-pools command
+tests/functional/cache/cache_008_neg	S	3	group:all-pools command,all-pools command
+tests/functional/cache/cache_009_pos	S	18	group:all-pools command,all-pools command
+tests/functional/cache/cache_010_pos	S	0	group:all-pools command,all-pools command
+tests/functional/cache/cache_011_pos	S	9	group:all-pools command,all-pools command
+tests/functional/cache/cache_012_pos	S	36	group:all-pools command,tunable,kstat,all-pools command
+tests/functional/cachefile/cachefile_001_pos	S	0	group:cachefile/hostid,cachefile/hostid
+tests/functional/cachefile/cachefile_002_pos	S	1	group:cachefile/hostid,cachefile/hostid
+tests/functional/cachefile/cachefile_003_pos	S	0	group:cachefile/hostid,cachefile/hostid
+tests/functional/cachefile/cachefile_004_pos	S	1	group:cachefile/hostid,cachefile/hostid
+tests/functional/casenorm/case_all_values	P	0	-
+tests/functional/casenorm/insensitive_formd_delete	P	0	-
+tests/functional/casenorm/insensitive_formd_lookup	P	0	-
+tests/functional/casenorm/insensitive_none_delete	P	0	-
+tests/functional/casenorm/insensitive_none_lookup	P	0	-
+tests/functional/casenorm/mixed_create_failure	P	7	-
+tests/functional/casenorm/mixed_formd_delete	P	0	-
+tests/functional/casenorm/mixed_formd_lookup	P	0	-
+tests/functional/casenorm/mixed_formd_lookup_ci	P	0	-
+tests/functional/casenorm/mixed_none_delete	P	0	-
+tests/functional/casenorm/mixed_none_lookup	P	0	-
+tests/functional/casenorm/mixed_none_lookup_ci	P	0	-
+tests/functional/casenorm/norm_all_values	P	2	-
+tests/functional/casenorm/sensitive_formd_delete	P	0	-
+tests/functional/casenorm/sensitive_formd_lookup	P	0	-
+tests/functional/casenorm/sensitive_none_delete	P	0	-
+tests/functional/casenorm/sensitive_none_lookup	P	0	-
+tests/functional/channel_program/lua_core/tst.args_to_lua	P	0	-
+tests/functional/channel_program/lua_core/tst.divide_by_zero	P	0	-
+tests/functional/channel_program/lua_core/tst.encryption	P	0	-
+tests/functional/channel_program/lua_core/tst.exists	P	0	-
+tests/functional/channel_program/lua_core/tst.integer_illegal	P	0	-
+tests/functional/channel_program/lua_core/tst.integer_overflow	P	0	-
+tests/functional/channel_program/lua_core/tst.language_functions_neg	P	0	-
+tests/functional/channel_program/lua_core/tst.language_functions_pos	P	0	-
+tests/functional/channel_program/lua_core/tst.large_prog	P	0	-
+tests/functional/channel_program/lua_core/tst.libraries	P	0	-
+tests/functional/channel_program/lua_core/tst.memory_limit	S	0	tunable
+tests/functional/channel_program/lua_core/tst.nested_neg	P	0	-
+tests/functional/channel_program/lua_core/tst.nested_pos	P	0	-
+tests/functional/channel_program/lua_core/tst.nvlist_to_lua	P	0	-
+tests/functional/channel_program/lua_core/tst.recursive_neg	P	0	-
+tests/functional/channel_program/lua_core/tst.recursive_pos	P	0	-
+tests/functional/channel_program/lua_core/tst.return_large	P	0	-
+tests/functional/channel_program/lua_core/tst.return_nvlist_neg	P	0	-
+tests/functional/channel_program/lua_core/tst.return_nvlist_pos	P	0	-
+tests/functional/channel_program/lua_core/tst.return_recursive_table	P	0	-
+tests/functional/channel_program/lua_core/tst.stack_gsub	P	0	-
+tests/functional/channel_program/lua_core/tst.timeout	P	0	-
+tests/functional/channel_program/synctask_core/tst.bookmark.copy	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.bookmark.create	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.clone	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.destroy_bookmark	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.destroy_fs	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.destroy_snap	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.get_count_and_limit	S	0	group:literal testpool,tunable
+tests/functional/channel_program/synctask_core/tst.get_index_props	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.get_mountpoint	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.get_neg	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.get_number_props	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.get_string_props	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.get_type	S	0	group:literal testpool,tunable
+tests/functional/channel_program/synctask_core/tst.get_userquota	S	0	group:literal testpool,users
+tests/functional/channel_program/synctask_core/tst.get_written	S	0	group:literal testpool,tunable
+tests/functional/channel_program/synctask_core/tst.inherit	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.list_bookmarks	S	0	group:literal testpool,literal testpool
+tests/functional/channel_program/synctask_core/tst.list_children	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.list_clones	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.list_holds	S	0	group:literal testpool,literal testpool
+tests/functional/channel_program/synctask_core/tst.list_snapshots	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.list_system_props	S	0	group:literal testpool,tunable
+tests/functional/channel_program/synctask_core/tst.list_user_props	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.parse_args_neg	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.promote_conflict	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.promote_multiple	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.promote_simple	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.rollback_mult	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.rollback_one	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.set_props	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.snapshot_destroy	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.snapshot_neg	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.snapshot_recursive	S	1	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.snapshot_rename	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.snapshot_simple	S	0	group:literal testpool
+tests/functional/channel_program/synctask_core/tst.terminate_by_signal	S	18	group:literal testpool
+tests/functional/chattr:Linux/chattr_001_pos	S	0	group:users,users
+tests/functional/chattr:Linux/chattr_002_neg	S	0	group:users,users
+tests/functional/checksum/filetest_001_pos	P	36	-
+tests/functional/checksum/filetest_002_pos	P	17	-
+tests/functional/checksum/run_blake3_test	P	6	-
+tests/functional/checksum/run_edonr_test	P	0	-
+tests/functional/checksum/run_sha2_test	P	29	-
+tests/functional/checksum/run_skein_test	P	6	-
+tests/functional/clean_mirror/clean_mirror_001_pos	P	1	-
+tests/functional/clean_mirror/clean_mirror_002_pos	P	1	-
+tests/functional/clean_mirror/clean_mirror_003_pos	P	2	-
+tests/functional/clean_mirror/clean_mirror_004_pos	P	3	-
+tests/functional/cli_root/json/json_sanity	S	0	group:literal testpool,group:all-pools command,literal testpool
+tests/functional/cli_root/zdb/zdb_002_pos	P	12	-
+tests/functional/cli_root/zdb/zdb_003_pos	S	0	tunable
+tests/functional/cli_root/zdb/zdb_004_pos	S	0	tunable
+tests/functional/cli_root/zdb/zdb_005_pos	S	0	tunable
+tests/functional/cli_root/zdb/zdb_006_pos	P	9	-
+tests/functional/cli_root/zdb/zdb_args_neg	P	2	-
+tests/functional/cli_root/zdb/zdb_args_pos	P	102	-
+tests/functional/cli_root/zdb/zdb_backup	P	1	-
+tests/functional/cli_root/zdb/zdb_block_size_histogram	P	5	-
+tests/functional/cli_root/zdb/zdb_checksum	P	2	-
+tests/functional/cli_root/zdb/zdb_decompress	P	6	-
+tests/functional/cli_root/zdb/zdb_decompress_zstd	P	2	-
+tests/functional/cli_root/zdb/zdb_display_block	P	6	-
+tests/functional/cli_root/zdb/zdb_encrypted	P	3	-
+tests/functional/cli_root/zdb/zdb_encrypted_raw	P	3	-
+tests/functional/cli_root/zdb/zdb_file_layout_001	P	1	-
+tests/functional/cli_root/zdb/zdb_file_layout_002	P	1	-
+tests/functional/cli_root/zdb/zdb_file_layout_003	P	1	-
+tests/functional/cli_root/zdb/zdb_file_layout_neg	P	0	-
+tests/functional/cli_root/zdb/zdb_label_checksum	P	0	-
+tests/functional/cli_root/zdb/zdb_object_range_neg	P	161	-
+tests/functional/cli_root/zdb/zdb_object_range_pos	P	22	-
+tests/functional/cli_root/zdb/zdb_objset_id	S	9	kstat
+tests/functional/cli_root/zdb/zdb_recover	P	1	-
+tests/functional/cli_root/zdb/zdb_recover_2	P	1	-
+tests/functional/cli_root/zdb/zdb_tunables	S	0	zfs_flags
+tests/functional/cli_root/zfs/zfs_001_neg	P	0	-
+tests/functional/cli_root/zfs/zfs_002_pos	P	1	-
+tests/functional/cli_root/zfs:Linux/zfs_003_neg	P	30	-
+tests/functional/cli_root/zfs_bookmark/zfs_bookmark_cliargs	P	2	-
+tests/functional/cli_root/zfs_bookmark/zfs_bookmark_recursive	P	0	-
+tests/functional/cli_root/zfs_change-key/zfs_change-key	P	0	-
+tests/functional/cli_root/zfs_change-key/zfs_change-key_child	P	1	-
+tests/functional/cli_root/zfs_change-key/zfs_change-key_clones	P	1	-
+tests/functional/cli_root/zfs_change-key/zfs_change-key_format	P	0	-
+tests/functional/cli_root/zfs_change-key/zfs_change-key_inherit	P	0	-
+tests/functional/cli_root/zfs_change-key/zfs_change-key_load	P	0	-
+tests/functional/cli_root/zfs_change-key/zfs_change-key_location	P	0	-
+tests/functional/cli_root/zfs_change-key/zfs_change-key_mismatch	P	1	-
+tests/functional/cli_root/zfs_change-key/zfs_change-key_pbkdf2iters	P	0	-
+tests/functional/cli_root/zfs_change-key/zfs_change-key_userprop	P	0	-
+tests/functional/cli_root/zfs_clone/zfs_clone_001_neg	P	0	-
+tests/functional/cli_root/zfs_clone/zfs_clone_002_pos	P	1	-
+tests/functional/cli_root/zfs_clone/zfs_clone_003_pos	P	1	-
+tests/functional/cli_root/zfs_clone/zfs_clone_004_pos	P	0	-
+tests/functional/cli_root/zfs_clone/zfs_clone_005_pos	P	2	-
+tests/functional/cli_root/zfs_clone/zfs_clone_006_pos	P	0	-
+tests/functional/cli_root/zfs_clone/zfs_clone_007_pos	P	0	-
+tests/functional/cli_root/zfs_clone/zfs_clone_008_neg	P	0	-
+tests/functional/cli_root/zfs_clone/zfs_clone_009_neg	P	0	-
+tests/functional/cli_root/zfs_clone/zfs_clone_010_pos	P	8	-
+tests/functional/cli_root/zfs_clone/zfs_clone_011_pos	P	1	-
+tests/functional/cli_root/zfs_clone/zfs_clone_deeply_nested	P	98	-
+tests/functional/cli_root/zfs_clone/zfs_clone_encrypted	P	1	-
+tests/functional/cli_root/zfs_clone/zfs_clone_nomount	P	0	-
+tests/functional/cli_root/zfs_clone/zfs_clone_rm_nested	P	41	-
+tests/functional/cli_root/zfs_copies/zfs_copies_001_pos	S	18	group:tunable,tunable
+tests/functional/cli_root/zfs_copies/zfs_copies_002_pos	S	0	group:tunable,tunable
+tests/functional/cli_root/zfs_copies/zfs_copies_003_pos	S	4	group:tunable,tunable
+tests/functional/cli_root/zfs_copies/zfs_copies_004_neg	S	6	group:tunable,tunable
+tests/functional/cli_root/zfs_copies/zfs_copies_005_neg	S	1	group:tunable,tunable
+tests/functional/cli_root/zfs_copies/zfs_copies_006_pos	S	1	group:tunable,tunable
+tests/functional/cli_root/zfs_create/zfs_create_001_pos	P	0	-
+tests/functional/cli_root/zfs_create/zfs_create_002_pos	P	2	-
+tests/functional/cli_root/zfs_create/zfs_create_003_pos	P	0	-
+tests/functional/cli_root/zfs_create/zfs_create_004_pos	P	1	-
+tests/functional/cli_root/zfs_create/zfs_create_005_pos	P	0	-
+tests/functional/cli_root/zfs_create/zfs_create_006_pos	P	1	-
+tests/functional/cli_root/zfs_create/zfs_create_007_pos	P	0	-
+tests/functional/cli_root/zfs_create/zfs_create_008_neg	S	1	shares
+tests/functional/cli_root/zfs_create/zfs_create_009_neg	P	0	-
+tests/functional/cli_root/zfs_create/zfs_create_010_neg	P	1	-
+tests/functional/cli_root/zfs_create/zfs_create_011_pos	P	1	-
+tests/functional/cli_root/zfs_create/zfs_create_012_pos	P	0	-
+tests/functional/cli_root/zfs_create/zfs_create_013_pos	P	2	-
+tests/functional/cli_root/zfs_create/zfs_create_014_pos	P	0	-
+tests/functional/cli_root/zfs_create/zfs_create_015_pos	P	1	-
+tests/functional/cli_root/zfs_create/zfs_create_crypt_combos	P	3	-
+tests/functional/cli_root/zfs_create/zfs_create_dryrun	P	0	-
+tests/functional/cli_root/zfs_create/zfs_create_encrypted	P	2	-
+tests/functional/cli_root/zfs_create/zfs_create_nomount	P	0	-
+tests/functional/cli_root/zfs_create/zfs_create_verbose	P	0	-
+tests/functional/cli_root/zfs_destroy/zfs_clone_livelist_condense_and_disable	S	36	tunable
+tests/functional/cli_root/zfs_destroy/zfs_clone_livelist_condense_races	S	2	tunable
+tests/functional/cli_root/zfs_destroy/zfs_clone_livelist_dedup	S	10	tunable
+tests/functional/cli_root/zfs_destroy/zfs_destroy_001_pos	P	36	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_002_pos	P	0	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_003_pos	P	1	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_004_pos	P	0	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_005_neg	P	4	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_006_neg	P	0	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_007_neg	P	0	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_008_pos	P	1	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_009_pos	P	1	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_010_pos	P	1	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_011_pos	P	1	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_012_pos	P	1	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_013_neg	P	1	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_014_pos	P	0	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_015_pos	P	7	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_016_pos	P	8	-
+tests/functional/cli_root/zfs_destroy/zfs_destroy_clone_livelist	S	62	tunable
+tests/functional/cli_root/zfs_destroy/zfs_destroy_dev_removal	S	0	tunable
+tests/functional/cli_root/zfs_destroy/zfs_destroy_dev_removal_condense	S	0	tunable
+tests/functional/cli_root/zfs_diff/zfs_diff_changes	P	0	-
+tests/functional/cli_root/zfs_diff/zfs_diff_cliargs	P	2	-
+tests/functional/cli_root/zfs_diff/zfs_diff_encrypted	P	0	-
+tests/functional/cli_root/zfs_diff/zfs_diff_mangle	P	0	-
+tests/functional/cli_root/zfs_diff/zfs_diff_timestamp	P	8	-
+tests/functional/cli_root/zfs_diff/zfs_diff_types	P	1	-
+tests/functional/cli_root/zfs_get/zfs_get_001_pos	P	36	-
+tests/functional/cli_root/zfs_get/zfs_get_002_pos	P	16	-
+tests/functional/cli_root/zfs_get/zfs_get_003_pos	P	0	-
+tests/functional/cli_root/zfs_get/zfs_get_004_pos	P	4	-
+tests/functional/cli_root/zfs_get/zfs_get_005_neg	P	10	-
+tests/functional/cli_root/zfs_get/zfs_get_006_neg	P	0	-
+tests/functional/cli_root/zfs_get/zfs_get_007_neg	P	0	-
+tests/functional/cli_root/zfs_get/zfs_get_008_pos	P	20	-
+tests/functional/cli_root/zfs_get/zfs_get_009_pos	P	126	-
+tests/functional/cli_root/zfs_get/zfs_get_010_neg	P	0	-
+tests/functional/cli_root/zfs_ids_to_path/zfs_ids_to_path_001_pos	P	1	-
+tests/functional/cli_root/zfs_inherit/zfs_inherit_001_neg	P	0	-
+tests/functional/cli_root/zfs_inherit/zfs_inherit_002_neg	P	6	-
+tests/functional/cli_root/zfs_inherit/zfs_inherit_003_pos	P	0	-
+tests/functional/cli_root/zfs_inherit/zfs_inherit_mountpoint	P	0	-
+tests/functional/cli_root/zfs_jail:FreeBSD/zfs_jail_001_pos	P	0	-
+tests/functional/cli_root/zfs_list/zfs_list_009_pos	P	0	-
+tests/functional/cli_root/zfs_load-key/zfs_load-key	P	1	-
+tests/functional/cli_root/zfs_load-key/zfs_load-key_all	P	2	-
+tests/functional/cli_root/zfs_load-key/zfs_load-key_file	P	0	-
+tests/functional/cli_root/zfs_load-key/zfs_load-key_https	P	1	-
+tests/functional/cli_root/zfs_load-key/zfs_load-key_location	P	0	-
+tests/functional/cli_root/zfs_load-key/zfs_load-key_noop	P	0	-
+tests/functional/cli_root/zfs_load-key/zfs_load-key_recursive	P	1	-
+tests/functional/cli_root/zfs_mount/zfs_mount_001_pos	P	0	-
+tests/functional/cli_root/zfs_mount/zfs_mount_002_pos	P	0	-
+tests/functional/cli_root/zfs_mount/zfs_mount_003_pos	P	0	-
+tests/functional/cli_root/zfs_mount/zfs_mount_004_pos	P	0	-
+tests/functional/cli_root/zfs_mount/zfs_mount_005_pos	P	0	-
+tests/functional/cli_root/zfs_mount/zfs_mount_007_pos	P	0	-
+tests/functional/cli_root/zfs_mount/zfs_mount_009_neg	P	0	-
+tests/functional/cli_root/zfs_mount/zfs_mount_010_neg	P	0	-
+tests/functional/cli_root/zfs_mount/zfs_mount_011_neg	P	0	-
+tests/functional/cli_root/zfs_mount/zfs_mount_012_pos	P	0	-
+tests/functional/cli_root/zfs_mount/zfs_mount_all_001_pos	P	6	-
+tests/functional/cli_root/zfs_mount/zfs_mount_all_fail	P	1	-
+tests/functional/cli_root/zfs_mount/zfs_mount_all_mountpoints	P	2	-
+tests/functional/cli_root/zfs_mount/zfs_mount_encrypted	S	0	all-pools command
+tests/functional/cli_root/zfs_mount/zfs_mount_recursive	P	1	-
+tests/functional/cli_root/zfs_mount/zfs_mount_remount	P	1	-
+tests/functional/cli_root/zfs_mount/zfs_mount_ro_rw	P	1	-
+tests/functional/cli_root/zfs_mount/zfs_mount_test_race	S	0	all-pools command
+tests/functional/cli_root/zfs_mount:Linux/zfs_mount_006_pos	P	0	-
+tests/functional/cli_root/zfs_mount:Linux/zfs_mount_008_pos	P	0	-
+tests/functional/cli_root/zfs_mount:Linux/zfs_mount_013_pos	P	0	-
+tests/functional/cli_root/zfs_mount:Linux/zfs_mount_014_neg	P	0	-
+tests/functional/cli_root/zfs_mount:Linux/zfs_multi_mount	P	0	-
+tests/functional/cli_root/zfs_program/zfs_channel_program_support	P	0	-
+tests/functional/cli_root/zfs_program/zfs_program_json	P	0	-
+tests/functional/cli_root/zfs_promote/zfs_promote_001_pos	P	0	-
+tests/functional/cli_root/zfs_promote/zfs_promote_002_pos	P	0	-
+tests/functional/cli_root/zfs_promote/zfs_promote_003_pos	P	0	-
+tests/functional/cli_root/zfs_promote/zfs_promote_004_pos	P	0	-
+tests/functional/cli_root/zfs_promote/zfs_promote_005_pos	P	0	-
+tests/functional/cli_root/zfs_promote/zfs_promote_006_neg	P	0	-
+tests/functional/cli_root/zfs_promote/zfs_promote_007_neg	P	0	-
+tests/functional/cli_root/zfs_promote/zfs_promote_008_pos	P	0	-
+tests/functional/cli_root/zfs_promote/zfs_promote_encryptionroot	P	1	-
+tests/functional/cli_root/zfs_property/zfs_written_property_001_pos	P	6	-
+tests/functional/cli_root/zfs_receive/receive-o-x_props_aliases	P	6	-
+tests/functional/cli_root/zfs_receive/receive-o-x_props_override	P	8	-
+tests/functional/cli_root/zfs_receive/zfs_receive-x_props_alternation	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_-e	P	1	-
+tests/functional/cli_root/zfs_receive/zfs_receive_-wR-encrypted-mix	P	1	-
+tests/functional/cli_root/zfs_receive/zfs_receive_001_pos	P	2	-
+tests/functional/cli_root/zfs_receive/zfs_receive_002_pos	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_003_pos	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_004_neg	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_005_neg	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_006_pos	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_007_neg	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_008_pos	P	1	-
+tests/functional/cli_root/zfs_receive/zfs_receive_009_neg	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_010_pos	P	2	-
+tests/functional/cli_root/zfs_receive/zfs_receive_011_pos	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_012_pos	P	2	-
+tests/functional/cli_root/zfs_receive/zfs_receive_013_pos	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_014_pos	P	1	-
+tests/functional/cli_root/zfs_receive/zfs_receive_015_pos	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_016_pos	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_compressed_corrective	S	24	zinject
+tests/functional/cli_root/zfs_receive/zfs_receive_corrective	S	24	zinject
+tests/functional/cli_root/zfs_receive/zfs_receive_from_encrypted	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_from_zstd	P	2	-
+tests/functional/cli_root/zfs_receive/zfs_receive_large_block_corrective	S	23	zinject
+tests/functional/cli_root/zfs_receive/zfs_receive_new_props	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_raw	P	1	-
+tests/functional/cli_root/zfs_receive/zfs_receive_raw_-d	P	0	-
+tests/functional/cli_root/zfs_receive/zfs_receive_raw_incremental	P	1	-
+tests/functional/cli_root/zfs_receive/zfs_receive_to_encrypted	P	1	-
+tests/functional/cli_root/zfs_rename/zfs_rename_001_pos	P	3	-
+tests/functional/cli_root/zfs_rename/zfs_rename_002_pos	P	60	-
+tests/functional/cli_root/zfs_rename/zfs_rename_003_pos	P	0	-
+tests/functional/cli_root/zfs_rename/zfs_rename_004_neg	P	2	-
+tests/functional/cli_root/zfs_rename/zfs_rename_005_neg	P	1	-
+tests/functional/cli_root/zfs_rename/zfs_rename_006_pos	P	2	-
+tests/functional/cli_root/zfs_rename/zfs_rename_007_pos	P	1	-
+tests/functional/cli_root/zfs_rename/zfs_rename_008_pos	P	0	-
+tests/functional/cli_root/zfs_rename/zfs_rename_009_neg	P	0	-
+tests/functional/cli_root/zfs_rename/zfs_rename_010_neg	P	0	-
+tests/functional/cli_root/zfs_rename/zfs_rename_011_pos	P	1	-
+tests/functional/cli_root/zfs_rename/zfs_rename_012_neg	P	0	-
+tests/functional/cli_root/zfs_rename/zfs_rename_013_pos	P	0	-
+tests/functional/cli_root/zfs_rename/zfs_rename_014_neg	S	46	tunable
+tests/functional/cli_root/zfs_rename/zfs_rename_015_pos	P	1	-
+tests/functional/cli_root/zfs_rename/zfs_rename_encrypted_child	P	1	-
+tests/functional/cli_root/zfs_rename/zfs_rename_mountpoint	P	0	-
+tests/functional/cli_root/zfs_rename/zfs_rename_nounmount	P	0	-
+tests/functional/cli_root/zfs_rename/zfs_rename_to_encrypted	P	0	-
+tests/functional/cli_root/zfs_reservation/zfs_reservation_001_pos	P	0	-
+tests/functional/cli_root/zfs_reservation/zfs_reservation_002_pos	P	0	-
+tests/functional/cli_root/zfs_rewrite/zfs_rewrite	P	6	-
+tests/functional/cli_root/zfs_rewrite/zfs_rewrite_physical	P	0	-
+tests/functional/cli_root/zfs_rewrite/zfs_rewrite_skip_clone	P	6	-
+tests/functional/cli_root/zfs_rewrite/zfs_rewrite_skip_snapshot	P	4	-
+tests/functional/cli_root/zfs_rollback/zfs_rollback_001_pos	P	57	-
+tests/functional/cli_root/zfs_rollback/zfs_rollback_002_pos	P	3	-
+tests/functional/cli_root/zfs_rollback/zfs_rollback_003_neg	P	0	-
+tests/functional/cli_root/zfs_rollback/zfs_rollback_004_neg	P	1	-
+tests/functional/cli_root/zfs_send/zfs_send-b	P	3	-
+tests/functional/cli_root/zfs_send/zfs_send_001_pos	P	0	-
+tests/functional/cli_root/zfs_send/zfs_send_002_pos	P	3	-
+tests/functional/cli_root/zfs_send/zfs_send_003_pos	P	0	-
+tests/functional/cli_root/zfs_send/zfs_send_004_neg	P	0	-
+tests/functional/cli_root/zfs_send/zfs_send_005_pos	P	0	-
+tests/functional/cli_root/zfs_send/zfs_send_006_pos	S	8	tunable
+tests/functional/cli_root/zfs_send/zfs_send_007_pos	P	9	-
+tests/functional/cli_root/zfs_send/zfs_send_encrypted	P	0	-
+tests/functional/cli_root/zfs_send/zfs_send_encrypted_unloaded	P	0	-
+tests/functional/cli_root/zfs_send/zfs_send_raw	P	0	-
+tests/functional/cli_root/zfs_send/zfs_send_skip_missing	P	0	-
+tests/functional/cli_root/zfs_send/zfs_send_sparse	P	13	-
+tests/functional/cli_root/zfs_set/cache_001_pos	P	0	-
+tests/functional/cli_root/zfs_set/cache_002_neg	P	0	-
+tests/functional/cli_root/zfs_set/canmount_001_pos	S	1	all-pools command
+tests/functional/cli_root/zfs_set/canmount_002_pos	S	2	shares,all-pools command
+tests/functional/cli_root/zfs_set/canmount_003_pos	S	0	all-pools command
+tests/functional/cli_root/zfs_set/canmount_004_pos	S	0	shares
+tests/functional/cli_root/zfs_set/checksum_001_pos	P	0	-
+tests/functional/cli_root/zfs_set/compression_001_pos	P	0	-
+tests/functional/cli_root/zfs_set/mountpoint_001_pos	P	0	-
+tests/functional/cli_root/zfs_set/mountpoint_002_pos	S	0	all-pools command
+tests/functional/cli_root/zfs_set/mountpoint_003_pos	P	0	-
+tests/functional/cli_root/zfs_set/onoffs_001_pos	S	0	all-pools command
+tests/functional/cli_root/zfs_set/property_alias_001_pos	P	3	-
+tests/functional/cli_root/zfs_set/readonly_001_pos	S	2	all-pools command
+tests/functional/cli_root/zfs_set/reservation_001_neg	P	8	-
+tests/functional/cli_root/zfs_set/ro_props_001_pos	P	43	-
+tests/functional/cli_root/zfs_set/share_mount_001_neg	S	0	shares
+tests/functional/cli_root/zfs_set/snapdir_001_pos	P	0	-
+tests/functional/cli_root/zfs_set/user_property_001_pos	P	3	-
+tests/functional/cli_root/zfs_set/user_property_002_pos	P	0	-
+tests/functional/cli_root/zfs_set/user_property_003_neg	P	0	-
+tests/functional/cli_root/zfs_set/user_property_004_pos	P	0	-
+tests/functional/cli_root/zfs_set/version_001_neg	P	0	-
+tests/functional/cli_root/zfs_set/zfs_set_001_neg	P	21	-
+tests/functional/cli_root/zfs_set/zfs_set_002_neg	P	2	-
+tests/functional/cli_root/zfs_set/zfs_set_003_neg	S	0	shares
+tests/functional/cli_root/zfs_set/zfs_set_feature_activation	P	0	-
+tests/functional/cli_root/zfs_set/zfs_set_keylocation	P	1	-
+tests/functional/cli_root/zfs_set/zfs_set_nomount	S	0	shares
+tests/functional/cli_root/zfs_share/zfs_share_001_pos	S	0	shares,all-pools command
+tests/functional/cli_root/zfs_share/zfs_share_002_pos	S	0	shares
+tests/functional/cli_root/zfs_share/zfs_share_003_pos	S	0	shares
+tests/functional/cli_root/zfs_share/zfs_share_004_pos	S	0	shares
+tests/functional/cli_root/zfs_share/zfs_share_006_pos	S	0	shares
+tests/functional/cli_root/zfs_share/zfs_share_008_neg	S	0	shares
+tests/functional/cli_root/zfs_share/zfs_share_010_neg	S	0	shares
+tests/functional/cli_root/zfs_share/zfs_share_011_pos	S	0	shares
+tests/functional/cli_root/zfs_share/zfs_share_after_mount	S	0	shares,all-pools command
+tests/functional/cli_root/zfs_share/zfs_share_concurrent_shares	S	53	shares,all-pools command
+tests/functional/cli_root/zfs_share:Linux/zfs_share_005_pos	S	0	shares
+tests/functional/cli_root/zfs_share:Linux/zfs_share_007_neg	S	0	shares
+tests/functional/cli_root/zfs_share:Linux/zfs_share_009_neg	S	0	shares
+tests/functional/cli_root/zfs_share:Linux/zfs_share_012_pos	S	0	shares,all-pools command
+tests/functional/cli_root/zfs_share:Linux/zfs_share_013_pos	S	0	shares
+tests/functional/cli_root/zfs_snapshot/zfs_snapshot_001_neg	P	0	-
+tests/functional/cli_root/zfs_snapshot/zfs_snapshot_002_neg	P	0	-
+tests/functional/cli_root/zfs_snapshot/zfs_snapshot_003_neg	P	0	-
+tests/functional/cli_root/zfs_snapshot/zfs_snapshot_004_neg	P	9	-
+tests/functional/cli_root/zfs_snapshot/zfs_snapshot_005_neg	P	13	-
+tests/functional/cli_root/zfs_snapshot/zfs_snapshot_006_pos	P	1	-
+tests/functional/cli_root/zfs_snapshot/zfs_snapshot_007_neg	P	2	-
+tests/functional/cli_root/zfs_snapshot/zfs_snapshot_008_neg	P	0	-
+tests/functional/cli_root/zfs_snapshot/zfs_snapshot_009_pos	P	5	-
+tests/functional/cli_root/zfs_snapshot/zfs_snapshot_010_pos	P	6	-
+tests/functional/cli_root/zfs_sysfs:Linux/zfeature_set_unsupported	P	0	-
+tests/functional/cli_root/zfs_sysfs:Linux/zfs_get_unsupported	P	0	-
+tests/functional/cli_root/zfs_sysfs:Linux/zfs_set_unsupported	P	0	-
+tests/functional/cli_root/zfs_sysfs:Linux/zfs_sysfs_live	P	0	-
+tests/functional/cli_root/zfs_sysfs:Linux/zpool_get_unsupported	P	0	-
+tests/functional/cli_root/zfs_sysfs:Linux/zpool_set_unsupported	P	0	-
+tests/functional/cli_root/zfs_unload-key/zfs_unload-key	P	0	-
+tests/functional/cli_root/zfs_unload-key/zfs_unload-key_all	P	1	-
+tests/functional/cli_root/zfs_unload-key/zfs_unload-key_recursive	P	0	-
+tests/functional/cli_root/zfs_unmount/zfs_unmount_001_pos	P	0	-
+tests/functional/cli_root/zfs_unmount/zfs_unmount_002_pos	P	0	-
+tests/functional/cli_root/zfs_unmount/zfs_unmount_003_pos	P	1	-
+tests/functional/cli_root/zfs_unmount/zfs_unmount_004_pos	P	0	-
+tests/functional/cli_root/zfs_unmount/zfs_unmount_005_pos	P	0	-
+tests/functional/cli_root/zfs_unmount/zfs_unmount_006_pos	P	14	-
+tests/functional/cli_root/zfs_unmount/zfs_unmount_007_neg	P	0	-
+tests/functional/cli_root/zfs_unmount/zfs_unmount_008_neg	P	0	-
+tests/functional/cli_root/zfs_unmount/zfs_unmount_009_pos	S	0	all-pools command
+tests/functional/cli_root/zfs_unmount/zfs_unmount_all_001_pos	S	7	all-pools command
+tests/functional/cli_root/zfs_unmount/zfs_unmount_nested	P	60	-
+tests/functional/cli_root/zfs_unmount/zfs_unmount_unload_keys	P	1	-
+tests/functional/cli_root/zfs_unshare/zfs_unshare_001_pos	S	0	shares,all-pools command
+tests/functional/cli_root/zfs_unshare/zfs_unshare_002_pos	S	0	shares,all-pools command
+tests/functional/cli_root/zfs_unshare/zfs_unshare_003_pos	S	0	shares
+tests/functional/cli_root/zfs_unshare/zfs_unshare_004_neg	S	0	shares
+tests/functional/cli_root/zfs_unshare/zfs_unshare_005_neg	S	0	shares
+tests/functional/cli_root/zfs_unshare/zfs_unshare_006_pos	S	0	literal testpool,shares,all-pools command
+tests/functional/cli_root/zfs_unshare/zfs_unshare_007_pos	S	0	shares
+tests/functional/cli_root/zfs_unshare:Linux/zfs_unshare_008_pos	S	0	shares
+tests/functional/cli_root/zfs_upgrade/zfs_upgrade_001_pos	P	1	-
+tests/functional/cli_root/zfs_upgrade/zfs_upgrade_002_pos	P	0	-
+tests/functional/cli_root/zfs_upgrade/zfs_upgrade_003_pos	P	10	-
+tests/functional/cli_root/zfs_upgrade/zfs_upgrade_004_pos	P	13	-
+tests/functional/cli_root/zfs_upgrade/zfs_upgrade_005_pos	P	13	-
+tests/functional/cli_root/zfs_upgrade/zfs_upgrade_006_neg	P	0	-
+tests/functional/cli_root/zfs_upgrade/zfs_upgrade_007_neg	P	0	-
+tests/functional/cli_root/zfs_wait/zfs_wait_deleteq	P	3	-
+tests/functional/cli_root/zfs_wait/zfs_wait_getsubopt	P	0	-
+tests/functional/cli_root/zhack/zhack_label_repair_001	P	5	-
+tests/functional/cli_root/zhack/zhack_label_repair_002	P	0	-
+tests/functional/cli_root/zhack/zhack_label_repair_003	P	0	-
+tests/functional/cli_root/zhack/zhack_label_repair_004	P	0	-
+tests/functional/cli_root/zhack/zhack_metaslab_leak	P	6	-
+tests/functional/cli_root/zhack/zhack_mos_scan_reclaim	P	13	-
+tests/functional/cli_root/zinject/zinject_args	S	1	zinject
+tests/functional/cli_root/zinject/zinject_counts	S	3	zinject
+tests/functional/cli_root/zinject/zinject_probe	S	1	zinject,tunable,kstat
+tests/functional/cli_root/zpool/zpool_001_neg	P	0	-
+tests/functional/cli_root/zpool/zpool_002_pos	P	2	-
+tests/functional/cli_root/zpool/zpool_003_pos	P	0	-
+tests/functional/cli_root/zpool/zpool_colors	S	0	zinject,all-pools command
+tests/functional/cli_root/zpool_add/add-o_ashift	S	7	tunable,large data
+tests/functional/cli_root/zpool_add/add_prop_ashift	S	14	tunable,literal testpool
+tests/functional/cli_root/zpool_add/zpool_add_001_pos	P	3	-
+tests/functional/cli_root/zpool_add/zpool_add_002_pos	P	0	-
+tests/functional/cli_root/zpool_add/zpool_add_003_pos	P	0	-
+tests/functional/cli_root/zpool_add/zpool_add_004_pos	S	2	tunable
+tests/functional/cli_root/zpool_add/zpool_add_006_pos	P	0	-
+tests/functional/cli_root/zpool_add/zpool_add_007_neg	P	0	-
+tests/functional/cli_root/zpool_add/zpool_add_008_neg	P	0	-
+tests/functional/cli_root/zpool_add/zpool_add_009_neg	P	1	-
+tests/functional/cli_root/zpool_add/zpool_add_dryrun_output	P	0	-
+tests/functional/cli_root/zpool_add/zpool_add_warn_create	P	32	-
+tests/functional/cli_root/zpool_add/zpool_add_warn_degraded	P	99	-
+tests/functional/cli_root/zpool_add/zpool_add_warn_removal	P	67	-
+tests/functional/cli_root/zpool_add:Linux/add_nested_replacing_spare	S	5	zinject,zed / events,all-pools command
+tests/functional/cli_root/zpool_attach/attach-o_ashift	S	3	tunable,literal testpool
+tests/functional/cli_root/zpool_attach/zpool_attach_001_neg	P	0	-
+tests/functional/cli_root/zpool_clear/zpool_clear_001_pos	P	12	-
+tests/functional/cli_root/zpool_clear/zpool_clear_002_neg	P	0	-
+tests/functional/cli_root/zpool_clear/zpool_clear_003_neg	S	1	large data
+tests/functional/cli_root/zpool_clear/zpool_clear_readonly	P	1	-
+tests/functional/cli_root/zpool_condense/zpool_condense_basic	P	10	-
+tests/functional/cli_root/zpool_condense/zpool_condense_neg	P	0	-
+tests/functional/cli_root/zpool_create/create-o_ashift	S	23	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_001_pos	S	2	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_002_pos	S	1	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_003_pos	S	1	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_004_pos	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_005_pos	S	4	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_006_pos	S	11	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_007_neg	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_008_pos	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_009_neg	S	2	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_010_neg	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_011_neg	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_012_neg	S	0	group:literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_014_neg	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_015_neg	S	1	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_017_neg	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_018_pos	S	0	group:literal testpool,literal testpool,cachefile/hostid
+tests/functional/cli_root/zpool_create/zpool_create_019_pos	S	0	group:literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_020_pos	S	0	group:literal testpool,literal testpool,cachefile/hostid
+tests/functional/cli_root/zpool_create/zpool_create_021_pos	S	4	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_022_pos	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_023_neg	S	2	group:literal testpool,shares
+tests/functional/cli_root/zpool_create/zpool_create_024_pos	S	66	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_crypt_combos	S	6	group:literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_draid_001_pos	S	24	group:literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_draid_002_pos	S	15	group:literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_draid_003_pos	S	17	group:literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_draid_004_pos	S	86	group:literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_draid_005_pos	S	29	group:literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_dryrun_output	S	0	group:literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_edom_neg	S	0	group:literal testpool,tunable
+tests/functional/cli_root/zpool_create/zpool_create_encrypted	S	1	group:literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_errinfo_001_neg	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_features_001_pos	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_features_002_pos	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_features_003_pos	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_features_004_neg	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_features_005_pos	S	1	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_features_006_pos	S	0	group:literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_features_007_pos	S	42	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_features_008_pos	S	0	group:literal testpool,literal testpool
+tests/functional/cli_root/zpool_create/zpool_create_features_009_pos	S	4	group:literal testpool,cachefile/hostid
+tests/functional/cli_root/zpool_create/zpool_create_tempname	S	14	group:literal testpool
+tests/functional/cli_root/zpool_destroy/zpool_destroy_001_pos	S	1	tunable
+tests/functional/cli_root/zpool_destroy/zpool_destroy_002_pos	S	0	all-pools command
+tests/functional/cli_root/zpool_destroy/zpool_destroy_003_neg	P	0	-
+tests/functional/cli_root/zpool_detach/zpool_detach_001_neg	P	0	-
+tests/functional/cli_root/zpool_events/zpool_events_clear	S	0	zed / events
+tests/functional/cli_root/zpool_events/zpool_events_clear_retained	S	1	zed / events,tunable
+tests/functional/cli_root/zpool_events/zpool_events_cliargs	S	24	zed / events
+tests/functional/cli_root/zpool_events/zpool_events_duplicates	S	0	zinject,zed / events,tunable
+tests/functional/cli_root/zpool_events/zpool_events_errors	S	9	zinject,zed / events,tunable,all-pools command
+tests/functional/cli_root/zpool_events/zpool_events_follow	S	0	zed / events
+tests/functional/cli_root/zpool_events/zpool_events_poolname	S	1	zed / events
+tests/functional/cli_root/zpool_events/zpool_events_scrub_txg_continue_from_last	S	0	zed / events
+tests/functional/cli_root/zpool_expand:Linux/zpool_expand_001_pos	S	44	group:zed / events
+tests/functional/cli_root/zpool_expand:Linux/zpool_expand_002_pos	S	39	group:zed / events
+tests/functional/cli_root/zpool_expand:Linux/zpool_expand_003_neg	S	81	group:zed / events
+tests/functional/cli_root/zpool_expand:Linux/zpool_expand_004_pos	S	2	group:zed / events
+tests/functional/cli_root/zpool_expand:Linux/zpool_expand_005_pos	S	8	group:zed / events
+tests/functional/cli_root/zpool_expand:Linux/zpool_expand_006_pos	S	9	group:zed / events
+tests/functional/cli_root/zpool_expand:Linux/zpool_expand_007_pos	S	1	group:zed / events,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_export/zpool_export_001_pos	P	0	-
+tests/functional/cli_root/zpool_export/zpool_export_002_pos	P	0	-
+tests/functional/cli_root/zpool_export/zpool_export_003_neg	P	0	-
+tests/functional/cli_root/zpool_export/zpool_export_004_pos	P	1	-
+tests/functional/cli_root/zpool_export/zpool_export_005_neg	P	0	-
+tests/functional/cli_root/zpool_export/zpool_export_parallel_admin	S	0	zinject
+tests/functional/cli_root/zpool_export/zpool_export_parallel_pos	S	49	zinject,tunable,cachefile/hostid,all-pools command
+tests/functional/cli_root/zpool_get/vdev_get_001_pos	P	0	-
+tests/functional/cli_root/zpool_get/vdev_get_all	P	3	-
+tests/functional/cli_root/zpool_get/zpool_get_001_pos	P	0	-
+tests/functional/cli_root/zpool_get/zpool_get_002_pos	P	0	-
+tests/functional/cli_root/zpool_get/zpool_get_003_pos	P	2	-
+tests/functional/cli_root/zpool_get/zpool_get_004_neg	P	0	-
+tests/functional/cli_root/zpool_get/zpool_get_005_pos	P	1	-
+tests/functional/cli_root/zpool_get/zpool_get_006_pos	S	20	tunable
+tests/functional/cli_root/zpool_history/zpool_history_001_neg	P	0	-
+tests/functional/cli_root/zpool_history/zpool_history_002_pos	P	0	-
+tests/functional/cli_root/zpool_import/import_cachefile_device_added	S	5	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import/import_cachefile_device_removed	S	13	group:cachefile/hostid,zinject,tunable,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import/import_cachefile_device_replaced	S	52	group:cachefile/hostid,zinject,tunable,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import/import_cachefile_mirror_attached	S	2	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import/import_cachefile_mirror_detached	S	3	group:cachefile/hostid,zinject,tunable,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import/import_cachefile_paths_changed	S	5	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import/import_cachefile_shared_device	S	0	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import/import_devices_missing	S	10	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import/import_log_missing	S	0	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import/import_paths_changed	S	3	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import/import_relax_metadata_damaged	S	4	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import/import_rewind_config_changed	S	56	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import/import_rewind_device_replaced	S	124	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import/import_rewind_metadata_damaged	S	5	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_001_pos	S	4	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_002_pos	S	5	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_003_pos	S	0	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_004_pos	S	4	group:cachefile/hostid,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import/zpool_import_005_pos	S	3	group:cachefile/hostid,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import/zpool_import_006_pos	S	3	group:cachefile/hostid,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import/zpool_import_007_pos	S	3	group:cachefile/hostid,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import/zpool_import_008_pos	S	4	group:cachefile/hostid,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import/zpool_import_009_neg	S	1	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_010_pos	S	3	group:cachefile/hostid,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import/zpool_import_011_neg	S	2	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_012_pos	S	29	group:cachefile/hostid,cachefile/hostid,shares
+tests/functional/cli_root/zpool_import/zpool_import_013_neg	S	0	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_014_pos	S	2	group:cachefile/hostid,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import/zpool_import_015_pos	S	0	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_016_pos	S	3	group:cachefile/hostid,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import/zpool_import_017_pos	S	4	group:cachefile/hostid,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import/zpool_import_all_001_pos	S	3	group:cachefile/hostid,literal testpool,cachefile/hostid,all-pools command
+tests/functional/cli_root/zpool_import/zpool_import_encrypted	S	1	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_encrypted_load	S	1	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_errata3	S	2	group:cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_errata4	S	4	group:cachefile/hostid,tunable
+tests/functional/cli_root/zpool_import/zpool_import_features_001_pos	S	3	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_features_002_neg	S	7	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_features_003_pos	S	8	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_missing_001_pos	S	21	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_missing_002_pos	S	20	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_missing_003_pos	S	173	group:cachefile/hostid,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import/zpool_import_parallel_admin	S	10	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_parallel_neg	S	10	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_parallel_pos	S	75	group:cachefile/hostid,zinject,tunable,cachefile/hostid,all-pools command
+tests/functional/cli_root/zpool_import/zpool_import_rename_001_pos	S	6	group:cachefile/hostid,cachefile/hostid
+tests/functional/cli_root/zpool_import/zpool_import_status	S	90	group:cachefile/hostid,tunable,kstat,literal testpool,cachefile/hostid,large data
+tests/functional/cli_root/zpool_import:Linux/zpool_import_aux_paths	S	13	group:cachefile/hostid
+tests/functional/cli_root/zpool_import:Linux/zpool_import_hostid_changed	S	0	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import:Linux/zpool_import_hostid_changed_cachefile	S	0	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import:Linux/zpool_import_hostid_changed_cachefile_unclean_export	S	0	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_import:Linux/zpool_import_hostid_changed_unclean_export	S	0	group:cachefile/hostid,zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_initialize/zpool_initialize_attach_detach_add_remove	P	1	-
+tests/functional/cli_root/zpool_initialize/zpool_initialize_fault_export_import_online	P	1	-
+tests/functional/cli_root/zpool_initialize/zpool_initialize_import_export	S	3	tunable
+tests/functional/cli_root/zpool_initialize/zpool_initialize_multiple_pools	S	10	tunable,all-pools command
+tests/functional/cli_root/zpool_initialize/zpool_initialize_offline_export_import_online	P	1	-
+tests/functional/cli_root/zpool_initialize/zpool_initialize_online_offline	S	12	zinject
+tests/functional/cli_root/zpool_initialize/zpool_initialize_split	P	4	-
+tests/functional/cli_root/zpool_initialize/zpool_initialize_start_and_cancel_neg	S	1	all-pools command
+tests/functional/cli_root/zpool_initialize/zpool_initialize_start_and_cancel_pos	P	0	-
+tests/functional/cli_root/zpool_initialize/zpool_initialize_suspend_resume	S	8	tunable
+tests/functional/cli_root/zpool_initialize/zpool_initialize_uninit	P	5	-
+tests/functional/cli_root/zpool_initialize/zpool_initialize_unsupported_vdevs	P	1	-
+tests/functional/cli_root/zpool_initialize/zpool_initialize_verify_checksums	P	14	-
+tests/functional/cli_root/zpool_initialize/zpool_initialize_verify_initialized	S	3	tunable
+tests/functional/cli_root/zpool_initialize/zpool_initialize_zero	P	27	-
+tests/functional/cli_root/zpool_iostat/zpool_iostat_interval_all	P	5	-
+tests/functional/cli_root/zpool_iostat/zpool_iostat_interval_some	S	4	all-pools command
+tests/functional/cli_root/zpool_labelclear/zpool_labelclear_active	P	0	-
+tests/functional/cli_root/zpool_labelclear/zpool_labelclear_exported	P	1	-
+tests/functional/cli_root/zpool_labelclear/zpool_labelclear_removed	P	0	-
+tests/functional/cli_root/zpool_labelclear/zpool_labelclear_valid	P	1	-
+tests/functional/cli_root/zpool_offline/zpool_offline_001_pos	P	3	-
+tests/functional/cli_root/zpool_offline/zpool_offline_002_neg	P	0	-
+tests/functional/cli_root/zpool_offline/zpool_offline_003_pos	P	1	-
+tests/functional/cli_root/zpool_offline/zpool_offline_spare	S	0	literal testpool
+tests/functional/cli_root/zpool_online/zpool_online_001_pos	P	3	-
+tests/functional/cli_root/zpool_online/zpool_online_002_neg	P	0	-
+tests/functional/cli_root/zpool_prefetch/zpool_prefetch_001_pos	P	46	-
+tests/functional/cli_root/zpool_prefetch/zpool_prefetch_002_pos	P	3	-
+tests/functional/cli_root/zpool_reguid/zpool_reguid_001_pos	P	0	-
+tests/functional/cli_root/zpool_reguid/zpool_reguid_002_neg	P	0	-
+tests/functional/cli_root/zpool_remove/zpool_remove_001_neg	P	1	-
+tests/functional/cli_root/zpool_remove/zpool_remove_002_pos	P	0	-
+tests/functional/cli_root/zpool_remove/zpool_remove_003_pos	P	0	-
+tests/functional/cli_root/zpool_reopen:Linux/zpool_reopen_001_pos	P	17	-
+tests/functional/cli_root/zpool_reopen:Linux/zpool_reopen_002_pos	P	17	-
+tests/functional/cli_root/zpool_reopen:Linux/zpool_reopen_003_pos	S	35	zinject
+tests/functional/cli_root/zpool_reopen:Linux/zpool_reopen_004_pos	S	21	zinject
+tests/functional/cli_root/zpool_reopen:Linux/zpool_reopen_005_pos	S	47	zinject
+tests/functional/cli_root/zpool_reopen:Linux/zpool_reopen_006_neg	P	0	-
+tests/functional/cli_root/zpool_reopen:Linux/zpool_reopen_007_pos	P	1	-
+tests/functional/cli_root/zpool_replace/replace-o_ashift	S	3	tunable,literal testpool
+tests/functional/cli_root/zpool_replace/replace_prop_ashift	S	79	tunable,literal testpool
+tests/functional/cli_root/zpool_replace/zpool_replace_001_neg	P	0	-
+tests/functional/cli_root/zpool_resilver/zpool_resilver_bad_args	P	1	-
+tests/functional/cli_root/zpool_resilver/zpool_resilver_concurrent	S	38	zed / events
+tests/functional/cli_root/zpool_resilver/zpool_resilver_restart	S	6	tunable
+tests/functional/cli_root/zpool_scrub/zpool_error_scrub_001_pos	S	1	zinject,tunable
+tests/functional/cli_root/zpool_scrub/zpool_error_scrub_002_pos	S	4	zinject,tunable
+tests/functional/cli_root/zpool_scrub/zpool_error_scrub_003_pos	S	1	zinject,all-pools command
+tests/functional/cli_root/zpool_scrub/zpool_error_scrub_004_pos	P	0	-
+tests/functional/cli_root/zpool_scrub/zpool_scrub_001_neg	P	0	-
+tests/functional/cli_root/zpool_scrub/zpool_scrub_002_pos	S	3	tunable
+tests/functional/cli_root/zpool_scrub/zpool_scrub_003_pos	S	1	tunable
+tests/functional/cli_root/zpool_scrub/zpool_scrub_004_pos	S	1	tunable
+tests/functional/cli_root/zpool_scrub/zpool_scrub_005_pos	P	0	-
+tests/functional/cli_root/zpool_scrub/zpool_scrub_date_range_001	S	363	zinject,tunable
+tests/functional/cli_root/zpool_scrub/zpool_scrub_date_range_002	S	3	tunable
+tests/functional/cli_root/zpool_scrub/zpool_scrub_encrypted_unloaded	P	0	-
+tests/functional/cli_root/zpool_scrub/zpool_scrub_multiple_copies	S	2	zinject,all-pools command
+tests/functional/cli_root/zpool_scrub/zpool_scrub_multiple_pools	S	10	tunable,all-pools command
+tests/functional/cli_root/zpool_scrub/zpool_scrub_offline_device	P	2	-
+tests/functional/cli_root/zpool_scrub/zpool_scrub_print_repairing	S	0	zinject,tunable,all-pools command
+tests/functional/cli_root/zpool_scrub/zpool_scrub_thorough	S	45	tunable
+tests/functional/cli_root/zpool_scrub/zpool_scrub_txg_continue_from_last	S	2	zinject,tunable,cachefile/hostid
+tests/functional/cli_root/zpool_set/user_property_001_pos	P	0	-
+tests/functional/cli_root/zpool_set/user_property_002_neg	P	0	-
+tests/functional/cli_root/zpool_set/vdev_set_001_pos	P	0	-
+tests/functional/cli_root/zpool_set/vdev_set_allocating	P	0	-
+tests/functional/cli_root/zpool_set/vdev_set_path	P	0	-
+tests/functional/cli_root/zpool_set/vdev_set_scheduler	P	5	-
+tests/functional/cli_root/zpool_set/zpool_set_001_pos	P	0	-
+tests/functional/cli_root/zpool_set/zpool_set_002_neg	P	1	-
+tests/functional/cli_root/zpool_set/zpool_set_003_neg	P	0	-
+tests/functional/cli_root/zpool_set/zpool_set_ashift	S	0	tunable,literal testpool
+tests/functional/cli_root/zpool_set/zpool_set_clear_userprop	P	0	-
+tests/functional/cli_root/zpool_set/zpool_set_features	P	1	-
+tests/functional/cli_root/zpool_set/zpool_set_inherit	P	0	-
+tests/functional/cli_root/zpool_split/zpool_split_cliargs	P	2	-
+tests/functional/cli_root/zpool_split/zpool_split_devices	S	16	cachefile/hostid
+tests/functional/cli_root/zpool_split/zpool_split_dryrun_output	P	0	-
+tests/functional/cli_root/zpool_split/zpool_split_encryption	P	0	-
+tests/functional/cli_root/zpool_split/zpool_split_indirect	S	0	tunable
+tests/functional/cli_root/zpool_split/zpool_split_props	S	3	tunable,kstat,cachefile/hostid
+tests/functional/cli_root/zpool_split/zpool_split_resilver	S	12	tunable
+tests/functional/cli_root/zpool_split/zpool_split_vdevs	P	5	-
+tests/functional/cli_root/zpool_split:Linux/zpool_split_wholedisk	P	8	-
+tests/functional/cli_root/zpool_status/zpool_status_-v	S	3	zinject,tunable,literal testpool,all-pools command
+tests/functional/cli_root/zpool_status/zpool_status_001_pos	P	0	-
+tests/functional/cli_root/zpool_status/zpool_status_002_pos	S	0	literal testpool
+tests/functional/cli_root/zpool_status/zpool_status_003_pos	S	0	zinject,all-pools command
+tests/functional/cli_root/zpool_status/zpool_status_004_pos	S	0	zinject,all-pools command
+tests/functional/cli_root/zpool_status/zpool_status_005_pos	S	4	zinject
+tests/functional/cli_root/zpool_status/zpool_status_006_pos	S	1	zinject,all-pools command
+tests/functional/cli_root/zpool_status/zpool_status_007_pos	S	4	all-pools command
+tests/functional/cli_root/zpool_status/zpool_status_008_pos	S	28	zinject,tunable
+tests/functional/cli_root/zpool_status/zpool_status_009_pos	P	0	-
+tests/functional/cli_root/zpool_status/zpool_status_010_pos	P	7	-
+tests/functional/cli_root/zpool_status/zpool_status_011_pos	S	2	zinject
+tests/functional/cli_root/zpool_status/zpool_status_features_001_pos	S	0	literal testpool
+tests/functional/cli_root/zpool_sync/zpool_sync_001_pos	P	14	-
+tests/functional/cli_root/zpool_sync/zpool_sync_002_neg	P	0	-
+tests/functional/cli_root/zpool_trim/zpool_trim_attach_detach_add_remove	P	0	-
+tests/functional/cli_root/zpool_trim/zpool_trim_fault_export_import_online	P	0	-
+tests/functional/cli_root/zpool_trim/zpool_trim_import_export	P	2	-
+tests/functional/cli_root/zpool_trim/zpool_trim_multiple	P	5	-
+tests/functional/cli_root/zpool_trim/zpool_trim_multiple_pools	S	1	all-pools command
+tests/functional/cli_root/zpool_trim/zpool_trim_neg	P	0	-
+tests/functional/cli_root/zpool_trim/zpool_trim_offline_export_import_online	P	0	-
+tests/functional/cli_root/zpool_trim/zpool_trim_online_offline	P	1	-
+tests/functional/cli_root/zpool_trim/zpool_trim_partial	S	33	tunable,large data
+tests/functional/cli_root/zpool_trim/zpool_trim_rate	P	16	-
+tests/functional/cli_root/zpool_trim/zpool_trim_rate_neg	P	0	-
+tests/functional/cli_root/zpool_trim/zpool_trim_secure	P	0	-
+tests/functional/cli_root/zpool_trim/zpool_trim_split	P	1	-
+tests/functional/cli_root/zpool_trim/zpool_trim_start_and_cancel_neg	S	1	all-pools command
+tests/functional/cli_root/zpool_trim/zpool_trim_start_and_cancel_pos	P	0	-
+tests/functional/cli_root/zpool_trim/zpool_trim_suspend_resume	P	8	-
+tests/functional/cli_root/zpool_trim/zpool_trim_unsupported_vdevs	P	1	-
+tests/functional/cli_root/zpool_trim/zpool_trim_verify_checksums	P	7	-
+tests/functional/cli_root/zpool_trim/zpool_trim_verify_trimmed	S	2	tunable
+tests/functional/cli_root/zpool_upgrade/zpool_upgrade_001_pos	P	0	-
+tests/functional/cli_root/zpool_upgrade/zpool_upgrade_002_pos	P	73	-
+tests/functional/cli_root/zpool_upgrade/zpool_upgrade_003_pos	P	2	-
+tests/functional/cli_root/zpool_upgrade/zpool_upgrade_004_pos	P	89	-
+tests/functional/cli_root/zpool_upgrade/zpool_upgrade_005_neg	P	0	-
+tests/functional/cli_root/zpool_upgrade/zpool_upgrade_006_neg	P	0	-
+tests/functional/cli_root/zpool_upgrade/zpool_upgrade_007_pos	P	64	-
+tests/functional/cli_root/zpool_upgrade/zpool_upgrade_008_pos	P	46	-
+tests/functional/cli_root/zpool_upgrade/zpool_upgrade_009_neg	P	2	-
+tests/functional/cli_root/zpool_upgrade/zpool_upgrade_features_001_pos	S	1	literal testpool
+tests/functional/cli_root/zpool_wait/scan/zpool_wait_rebuild	S	43	group:zinject,zinject
+tests/functional/cli_root/zpool_wait/scan/zpool_wait_replace	S	20	group:zinject,zinject
+tests/functional/cli_root/zpool_wait/scan/zpool_wait_replace_cancel	S	7	group:zinject,zinject,tunable
+tests/functional/cli_root/zpool_wait/scan/zpool_wait_resilver	S	16	group:zinject,zinject
+tests/functional/cli_root/zpool_wait/scan/zpool_wait_scrub_basic	S	11	group:zinject,zinject
+tests/functional/cli_root/zpool_wait/scan/zpool_wait_scrub_cancel	S	10	group:zinject,zinject,tunable
+tests/functional/cli_root/zpool_wait/scan/zpool_wait_scrub_flag	S	5	group:zinject,zinject,tunable
+tests/functional/cli_root/zpool_wait/zpool_wait_condense	S	10	zinject
+tests/functional/cli_root/zpool_wait/zpool_wait_discard	S	31	zinject,tunable
+tests/functional/cli_root/zpool_wait/zpool_wait_freeing	S	9	zinject,tunable
+tests/functional/cli_root/zpool_wait/zpool_wait_initialize_basic	S	9	zinject,tunable
+tests/functional/cli_root/zpool_wait/zpool_wait_initialize_cancel	S	10	zinject,tunable
+tests/functional/cli_root/zpool_wait/zpool_wait_initialize_flag	S	7	zinject,tunable
+tests/functional/cli_root/zpool_wait/zpool_wait_multiple	S	14	zinject,tunable
+tests/functional/cli_root/zpool_wait/zpool_wait_no_activity	S	0	zinject
+tests/functional/cli_root/zpool_wait/zpool_wait_remove	S	13	zinject,tunable
+tests/functional/cli_root/zpool_wait/zpool_wait_remove_cancel	S	5	zinject,tunable
+tests/functional/cli_root/zpool_wait/zpool_wait_trim_basic	S	6	zinject
+tests/functional/cli_root/zpool_wait/zpool_wait_trim_cancel	S	10	zinject
+tests/functional/cli_root/zpool_wait/zpool_wait_trim_flag	S	7	zinject
+tests/functional/cli_root/zpool_wait/zpool_wait_usage	S	0	zinject
+tests/functional/cli_user/misc/zarcstat_001_pos	S	0	group:shares,tunable,kstat
+tests/functional/cli_user/misc/zarcsummary_001_pos	S	0	group:shares,tunable
+tests/functional/cli_user/misc/zarcsummary_002_neg	S	0	group:shares,tunable
+tests/functional/cli_user/misc/zdb_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_allow_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_clone_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_create_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_destroy_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_get_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_inherit_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_mount_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_promote_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_receive_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_rename_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_rollback_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_send_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_set_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_share_001_neg	S	0	group:shares,shares
+tests/functional/cli_user/misc/zfs_snapshot_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_unallow_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_unmount_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zfs_unshare_001_neg	S	0	group:shares,shares
+tests/functional/cli_user/misc/zfs_upgrade_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zilstat_001_pos	S	0	group:shares,tunable
+tests/functional/cli_user/misc/zpool_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_add_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_attach_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_clear_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_create_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_destroy_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_detach_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_export_001_neg	S	0	group:shares,all-pools command
+tests/functional/cli_user/misc/zpool_get_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_history_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_import_001_neg	S	0	group:shares,all-pools command
+tests/functional/cli_user/misc/zpool_import_002_neg	S	0	group:shares,literal testpool
+tests/functional/cli_user/misc/zpool_offline_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_online_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_remove_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_replace_001_neg	S	20	group:shares
+tests/functional/cli_user/misc/zpool_scrub_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_set_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_status_001_neg	S	0	group:shares,all-pools command
+tests/functional/cli_user/misc/zpool_upgrade_001_neg	S	0	group:shares
+tests/functional/cli_user/misc/zpool_wait_privilege	S	0	group:shares
+tests/functional/cli_user/zfs_list/zfs_list_001_pos	P	5	-
+tests/functional/cli_user/zfs_list/zfs_list_002_pos	P	1	-
+tests/functional/cli_user/zfs_list/zfs_list_003_pos	P	0	-
+tests/functional/cli_user/zfs_list/zfs_list_004_neg	P	0	-
+tests/functional/cli_user/zfs_list/zfs_list_005_neg	P	0	-
+tests/functional/cli_user/zfs_list/zfs_list_007_pos	P	7	-
+tests/functional/cli_user/zfs_list/zfs_list_008_neg	P	0	-
+tests/functional/cli_user/zpool_iostat/zpool_iostat_-c_disable	S	0	all-pools command
+tests/functional/cli_user/zpool_iostat/zpool_iostat_-c_homedir	P	0	-
+tests/functional/cli_user/zpool_iostat/zpool_iostat_-c_searchpath	P	0	-
+tests/functional/cli_user/zpool_iostat/zpool_iostat_001_neg	S	0	literal testpool
+tests/functional/cli_user/zpool_iostat/zpool_iostat_002_pos	P	3	-
+tests/functional/cli_user/zpool_iostat/zpool_iostat_003_neg	S	0	literal testpool
+tests/functional/cli_user/zpool_iostat/zpool_iostat_004_pos	S	0	literal testpool
+tests/functional/cli_user/zpool_iostat/zpool_iostat_005_pos	S	24	literal testpool
+tests/functional/cli_user/zpool_list/zpool_list_001_pos	P	0	-
+tests/functional/cli_user/zpool_list/zpool_list_002_neg	P	0	-
+tests/functional/cli_user/zpool_status/zpool_status_-c_disable	S	0	all-pools command
+tests/functional/cli_user/zpool_status/zpool_status_-c_homedir	P	0	-
+tests/functional/cli_user/zpool_status/zpool_status_-c_searchpath	P	0	-
+tests/functional/cli_user/zpool_status/zpool_status_003_pos	S	23	literal testpool
+tests/functional/compression/compress_001_pos	P	62	-
+tests/functional/compression/compress_002_pos	P	62	-
+tests/functional/compression/compress_003_pos	P	3	-
+tests/functional/compression/compress_004_pos	P	11	-
+tests/functional/compression/l2arc_compressed_arc	S	41	tunable,kstat,large data
+tests/functional/compression/l2arc_compressed_arc_disabled	S	39	tunable,kstat,large data
+tests/functional/compression/l2arc_encrypted	S	40	tunable,kstat,large data
+tests/functional/compression/l2arc_encrypted_no_compressed_arc	S	40	tunable,kstat,large data
+tests/functional/cp_files/cp_files_001_pos	P	16	-
+tests/functional/cp_files/cp_files_002_pos	S	1	tunable
+tests/functional/cp_files/cp_stress	P	41	-
+tests/functional/crtime/crtime_001_pos	P	0	-
+tests/functional/crypto/icp_aes_ccm	P	0	-
+tests/functional/crypto/icp_aes_gcm	P	0	-
+tests/functional/ctime/ctime_001_pos	P	48	-
+tests/functional/deadman/deadman_ratelimit	S	0	zinject,zed / events,tunable
+tests/functional/deadman/deadman_sync	S	15	zinject,zed / events,tunable,kstat
+tests/functional/deadman/deadman_zio	S	41	zinject,zed / events,tunable
+tests/functional/dedup/dedup_bclone	S	13	tunable
+tests/functional/dedup/dedup_bclone_pruned	S	8	tunable
+tests/functional/dedup/dedup_fdt_create	S	11	tunable
+tests/functional/dedup/dedup_fdt_import	S	14	tunable
+tests/functional/dedup/dedup_fdt_pacing	S	6	tunable
+tests/functional/dedup/dedup_legacy_create	P	9	-
+tests/functional/dedup/dedup_legacy_fdt_mixed	S	11	tunable
+tests/functional/dedup/dedup_legacy_fdt_upgrade	S	13	tunable
+tests/functional/dedup/dedup_legacy_import	P	9	-
+tests/functional/dedup/dedup_log_zdb_leak	S	32	tunable
+tests/functional/dedup/dedup_prune	S	2	zed / events,tunable
+tests/functional/dedup/dedup_prune_leak	S	15	zed / events,tunable
+tests/functional/dedup/dedup_quota	S	86	zed / events,tunable,large data
+tests/functional/dedup/dedup_zap_shrink	S	6	tunable
+tests/functional/dedup:Linux/dedup_legacy_gang	S	17	tunable
+tests/functional/delegate/zfs_allow_001_pos	S	7	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_allow_002_pos	S	2	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_allow_003_pos	S	9	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_allow_004_pos	S	5	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_allow_005_pos	S	6	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_allow_006_pos	S	3	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_allow_007_pos	S	4	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_allow_008_pos	S	1	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_allow_009_neg	S	0	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_allow_010_pos	S	28	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_allow_011_neg	S	0	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_allow_012_neg	S	25	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_allow_send	S	6	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_unallow_001_pos	S	2	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_unallow_002_pos	S	2	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_unallow_003_pos	S	2	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_unallow_004_pos	S	0	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_unallow_005_pos	S	1	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_unallow_006_pos	S	1	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_unallow_007_neg	S	1	group:tunable,group:users,group:shares,users,shares
+tests/functional/delegate/zfs_unallow_008_neg	S	2	group:tunable,group:users,group:shares,users,shares
+tests/functional/device_access:Linux/device_access_add	P	0	-
+tests/functional/device_access:Linux/device_access_attach	P	0	-
+tests/functional/device_access:Linux/device_access_create	P	0	-
+tests/functional/device_access:Linux/device_access_import	S	1	cachefile/hostid
+tests/functional/devices:Linux/devices_001_pos	P	0	-
+tests/functional/devices:Linux/devices_002_neg	P	0	-
+tests/functional/devices:Linux/devices_003_pos	P	0	-
+tests/functional/direct/dio_aligned_block	S	1	zed / events,kstat
+tests/functional/direct/dio_async_always	S	10	zed / events,kstat
+tests/functional/direct/dio_async_fio_ioengines	S	10	zed / events,kstat
+tests/functional/direct/dio_compression	S	11	zed / events,kstat
+tests/functional/direct/dio_dedup	S	2	zed / events,kstat
+tests/functional/direct/dio_encryption	S	6	zed / events,kstat
+tests/functional/direct/dio_grow_block	S	1	zed / events,kstat
+tests/functional/direct/dio_max_recordsize	S	19	zed / events,kstat
+tests/functional/direct/dio_mixed	S	2	zed / events,kstat
+tests/functional/direct/dio_mmap	S	60	zed / events,kstat
+tests/functional/direct/dio_overwrites	S	60	zed / events,kstat
+tests/functional/direct/dio_property	S	0	zed / events,kstat
+tests/functional/direct/dio_random	S	10	zed / events,kstat
+tests/functional/direct/dio_read_verify	S	3	zed / events,kstat
+tests/functional/direct/dio_recordsize	S	81	zed / events,kstat
+tests/functional/direct/dio_unaligned_block	S	0	zed / events,tunable,kstat
+tests/functional/direct/dio_unaligned_filesize	S	0	zed / events,kstat
+tests/functional/direct:FreeBSD/dio_write_stable_pages	S	3	zed / events,kstat
+tests/functional/direct:Linux/dio_loopback_dev	S	0	zed / events,kstat
+tests/functional/direct:Linux/dio_read_verify_decline	S	0	zed / events,kstat
+tests/functional/direct:Linux/dio_write_verify	S	3	zed / events,tunable,kstat
+tests/functional/dos_attributes:Linux/read_dos_attrs_001	P	0	-
+tests/functional/dos_attributes:Linux/write_dos_attrs_001	P	0	-
+tests/functional/events:Linux/events_001_pos	S	43	group:zed / events,zed / events
+tests/functional/events:Linux/events_002_pos	S	56	group:zed / events,zed / events
+tests/functional/events:Linux/slow_vdev_degraded_sit_out	S	96	group:zed / events,zinject,zed / events,tunable,large data
+tests/functional/events:Linux/slow_vdev_sit_out	S	162	group:zed / events,zinject,zed / events,tunable,large data
+tests/functional/events:Linux/slow_vdev_sit_out_neg	S	89	group:zed / events,zinject,zed / events,tunable
+tests/functional/events:Linux/zed_cksum_config	S	39	group:zed / events,zinject,zed / events
+tests/functional/events:Linux/zed_cksum_reported	S	7	group:zed / events,zinject,zed / events
+tests/functional/events:Linux/zed_diagnose_multiple	S	14	group:zed / events,zinject,zed / events
+tests/functional/events:Linux/zed_fd_spill	S	5	group:zed / events,zed / events
+tests/functional/events:Linux/zed_io_config	S	92	group:zed / events,zinject,zed / events,tunable
+tests/functional/events:Linux/zed_rc_filter	S	12	group:zed / events,zed / events
+tests/functional/events:Linux/zed_slow_io	S	205	group:zed / events,zinject,zed / events,tunable
+tests/functional/events:Linux/zed_slow_io_many_vdevs	S	21	group:zed / events,zinject,zed / events,tunable
+tests/functional/events:Linux/zed_synchronous_zedlet	S	13	group:zed / events,zed / events,literal testpool
+tests/functional/exec/exec_001_pos	P	0	-
+tests/functional/exec/exec_002_neg	P	0	-
+tests/functional/fadvise/fadvise_dontneed	S	0	kstat
+tests/functional/fadvise/fadvise_willneed	S	10	kstat
+tests/functional/fadvise/fadvise_willneed_limit	S	5	zinject,tunable,kstat
+tests/functional/failmode/failmode_dmu_tx_continue	S	3	zinject,kstat
+tests/functional/failmode/failmode_dmu_tx_wait	S	3	zinject,kstat
+tests/functional/failmode/failmode_fsync_continue	S	1	zinject,kstat
+tests/functional/failmode/failmode_fsync_wait	S	1	zinject,kstat
+tests/functional/failmode/failmode_msync_continue	S	1	zinject,kstat
+tests/functional/failmode/failmode_msync_wait	S	1	zinject,kstat
+tests/functional/failmode/failmode_osync_continue	S	1	zinject,kstat
+tests/functional/failmode/failmode_osync_wait	S	1	zinject,kstat
+tests/functional/failmode/failmode_syncalways_continue	S	1	zinject,kstat
+tests/functional/failmode/failmode_syncalways_wait	S	1	zinject,kstat
+tests/functional/fallocate/fallocate_punch-hole	P	0	-
+tests/functional/fallocate:Linux/fallocate_extend_timestamps	P	3	-
+tests/functional/fallocate:Linux/fallocate_prealloc	P	0	-
+tests/functional/fallocate:Linux/fallocate_zero-range	P	0	-
+tests/functional/fault:Linux/auto_offline_001_pos	S	91	group:zed / events,zed / events
+tests/functional/fault:Linux/auto_online_001_pos	S	18	group:zed / events,zed / events
+tests/functional/fault:Linux/auto_online_002_pos	S	13	group:zed / events,zed / events
+tests/functional/fault:Linux/auto_replace_001_pos	S	124	group:zed / events,zed / events,large data
+tests/functional/fault:Linux/auto_replace_002_pos	S	118	group:zed / events,zed / events,large data
+tests/functional/fault:Linux/auto_spare_001_pos	S	81	group:zed / events,zinject,zed / events
+tests/functional/fault:Linux/auto_spare_002_pos	S	17	group:zed / events,zinject,zed / events
+tests/functional/fault:Linux/auto_spare_ashift	S	21	group:zed / events,zinject,zed / events
+tests/functional/fault:Linux/auto_spare_double	S	10	group:zed / events,zed / events,kstat,all-pools command
+tests/functional/fault:Linux/auto_spare_multiple	S	78	group:zed / events,zinject,zed / events
+tests/functional/fault:Linux/auto_spare_rotational	S	16	group:zed / events,zinject,zed / events
+tests/functional/fault:Linux/auto_spare_shared	S	38	group:zed / events,zinject,zed / events
+tests/functional/fault:Linux/decompress_fault	S	5	group:zed / events,zinject,zed / events,tunable
+tests/functional/fault:Linux/decrypt_fault	S	1	group:zed / events,zinject,zed / events
+tests/functional/fault:Linux/fault_limits	S	17	group:zed / events,large data
+tests/functional/fault:Linux/scrub_after_resilver	S	1	group:zed / events
+tests/functional/fault:Linux/suspend_draid_fgroups	S	15	group:zed / events,zed / events,tunable,kstat,all-pools command,large data
+tests/functional/fault:Linux/suspend_on_probe_errors	S	13	group:zed / events,zed / events,tunable,kstat,all-pools command,large data
+tests/functional/fault:Linux/suspend_resume_single	S	17	group:zed / events,kstat
+tests/functional/fault:Linux/zpool_status_-s	S	1	group:zed / events,zinject,zed / events,tunable,all-pools command
+tests/functional/features/async_destroy/async_destroy_001_pos	S	16	tunable
+tests/functional/features/large_dnode/large_dnode_001_pos	P	6	-
+tests/functional/features/large_dnode/large_dnode_003_pos	P	0	-
+tests/functional/features/large_dnode/large_dnode_004_neg	P	0	-
+tests/functional/features/large_dnode/large_dnode_005_pos	P	1	-
+tests/functional/features/large_dnode/large_dnode_007_neg	P	0	-
+tests/functional/features/large_dnode/large_dnode_009_pos	P	12	-
+tests/functional/features/large_dnode:Linux/large_dnode_002_pos	P	5	-
+tests/functional/features/large_dnode:Linux/large_dnode_006_pos	P	1	-
+tests/functional/features/large_dnode:Linux/large_dnode_008_pos	P	16	-
+tests/functional/gang_blocks/gang_blocks_001_pos	S	4	group:tunable,zinject,tunable
+tests/functional/gang_blocks/gang_blocks_ddt_copies	S	20	group:tunable,tunable
+tests/functional/gang_blocks/gang_blocks_dyn_header_neg	S	3	group:tunable,tunable
+tests/functional/gang_blocks/gang_blocks_dyn_header_pos	S	35	group:tunable,tunable
+tests/functional/gang_blocks/gang_blocks_dyn_multi	S	3	group:tunable,tunable
+tests/functional/gang_blocks/gang_blocks_redundant	S	11	group:tunable,tunable
+tests/functional/getfsuuid:Linux/getfsuuid_001_pos	P	0	-
+tests/functional/getfsuuid:Linux/getfsuuid_002_pos	P	0	-
+tests/functional/getfsuuid:Linux/getfsuuid_003_pos	S	0	tunable
+tests/functional/grow/grow_pool_001_pos	P	3	-
+tests/functional/grow/grow_replicas_001_pos	P	6	-
+tests/functional/history/history_001_pos	P	3	-
+tests/functional/history/history_002_pos	P	5	-
+tests/functional/history/history_003_pos	P	26	-
+tests/functional/history/history_004_pos	P	4	-
+tests/functional/history/history_005_neg	P	0	-
+tests/functional/history/history_006_neg	S	0	shares
+tests/functional/history/history_007_pos	P	1	-
+tests/functional/history/history_008_pos	P	1	-
+tests/functional/history/history_009_pos	S	3	users
+tests/functional/history/history_010_pos	S	1	users
+tests/functional/hkdf/hkdf_test	S	0	not a ksh test
+tests/functional/idmap_mount:Linux/idmap_mount_001	P	0	-
+tests/functional/idmap_mount:Linux/idmap_mount_002	P	0	-
+tests/functional/idmap_mount:Linux/idmap_mount_003	P	1	-
+tests/functional/idmap_mount:Linux/idmap_mount_004	P	1	-
+tests/functional/idmap_mount:Linux/idmap_mount_005	P	1	-
+tests/functional/inheritance/inherit_001_pos	S	62	all-pools command
+tests/functional/inuse/inuse_004_pos	P	0	-
+tests/functional/inuse/inuse_005_pos	P	2	-
+tests/functional/inuse/inuse_008_pos	P	3	-
+tests/functional/inuse/inuse_009_pos	P	10	-
+tests/functional/io/mmap	P	18	-
+tests/functional/io/posixaio	P	15	-
+tests/functional/io/psync	P	13	-
+tests/functional/io/sync	P	14	-
+tests/functional/io:Linux/io_uring	P	13	-
+tests/functional/io:Linux/libaio	P	12	-
+tests/functional/l2arc/l2arc_arcstats_pos	S	28	tunable,kstat
+tests/functional/l2arc/l2arc_dwpd_ratelimit_pos	S	187	tunable,kstat,large data
+tests/functional/l2arc/l2arc_dwpd_reimport_pos	S	92	tunable,kstat,large data
+tests/functional/l2arc/l2arc_l2miss_pos	S	49	kstat
+tests/functional/l2arc/l2arc_mfuonly_pos	S	12	tunable,kstat
+tests/functional/l2arc/l2arc_multidev_scaling_pos	S	20	tunable,kstat
+tests/functional/l2arc/l2arc_multidev_throughput_pos	S	39	tunable,kstat
+tests/functional/l2arc/persist_l2arc_001_pos	S	17	tunable,kstat
+tests/functional/l2arc/persist_l2arc_002_pos	S	16	tunable,kstat
+tests/functional/l2arc/persist_l2arc_003_neg	S	12	tunable,kstat
+tests/functional/l2arc/persist_l2arc_004_pos	S	16	tunable,kstat
+tests/functional/l2arc/persist_l2arc_005_pos	S	15	tunable,kstat
+tests/functional/large_files/large_files_001_pos	P	0	-
+tests/functional/large_files/large_files_002_pos	P	0	-
+tests/functional/largest_pool:Linux/largest_pool_001_pos	P	38	-
+tests/functional/lease:Linux/lease_setlease	P	0	-
+tests/functional/libzfs/libzfs_input	P	0	-
+tests/functional/libzfs/libzfs_mnttab_cache	P	0	-
+tests/functional/libzfs/many_fds	S	0	not a ksh test
+tests/functional/limits/filesystem_count	S	3	group:users,group:shares
+tests/functional/limits/filesystem_limit	S	2	group:users,group:shares,tunable,users,shares
+tests/functional/limits/snapshot_count	S	2	group:users,group:shares
+tests/functional/limits/snapshot_limit	S	3	group:users,group:shares,tunable,users,shares
+tests/functional/link_count/link_count_001	P	15	-
+tests/functional/link_count/link_count_root_inode	P	0	-
+tests/functional/log_spacemap/log_spacemap_flushall	P	10	-
+tests/functional/log_spacemap/log_spacemap_import_logs	S	1	tunable
+tests/functional/longname:Linux/longname_001_pos	P	0	-
+tests/functional/longname:Linux/longname_002_pos	P	0	-
+tests/functional/longname:Linux/longname_003_pos	P	0	-
+tests/functional/luks:Linux/luks_sanity	S	14	literal testpool,all-pools command
+tests/functional/migration/migration_001_pos	P	0	-
+tests/functional/migration/migration_002_pos	P	0	-
+tests/functional/migration/migration_003_pos	P	0	-
+tests/functional/migration/migration_004_pos	P	0	-
+tests/functional/migration/migration_005_pos	P	0	-
+tests/functional/migration/migration_006_pos	P	0	-
+tests/functional/migration/migration_007_pos	P	0	-
+tests/functional/migration/migration_008_pos	P	0	-
+tests/functional/migration/migration_009_pos	P	0	-
+tests/functional/migration/migration_010_pos	P	0	-
+tests/functional/migration/migration_011_pos	P	0	-
+tests/functional/migration/migration_012_pos	P	0	-
+tests/functional/mmap/mmap_ftruncate	S	30	tunable
+tests/functional/mmap/mmap_mixed	P	60	-
+tests/functional/mmap/mmap_read_001_pos	P	1	-
+tests/functional/mmap/mmap_read_truncate	P	14	-
+tests/functional/mmap/mmap_seek_001_pos	S	0	tunable
+tests/functional/mmap/mmap_sync_001_pos	P	60	-
+tests/functional/mmap/mmap_write_001_pos	P	30	-
+tests/functional/mmap:Linux/mmap_libaio_001_pos	P	1	-
+tests/functional/mmap:Linux/mmap_sync_001_pos	P	60	-
+tests/functional/mmp:Linux/mmp_active_import	S	206	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_concurrent_import	S	182	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_degraded_import	S	146	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_exported_import	S	107	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_hostid	S	1	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_inactive_import	S	159	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_interval	S	0	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_on_off	S	13	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_on_thread	S	7	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_on_uberblocks	S	10	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_on_zdb	S	14	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_reset_interval	S	148	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid,all-pools command
+tests/functional/mmp:Linux/mmp_write_distribution	S	4	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_write_slow_disk	S	22	group:tunable,group:cachefile/hostid,zinject,zed / events,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_write_uberblocks	S	3	group:tunable,group:cachefile/hostid,zinject,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/mmp_zhack_reclaim	S	369	group:tunable,group:cachefile/hostid,tunable,kstat,cachefile/hostid
+tests/functional/mmp:Linux/multihost_history	S	3	group:tunable,group:cachefile/hostid,zinject,tunable,kstat,cachefile/hostid
+tests/functional/mount/umount_001	P	0	-
+tests/functional/mount/umountall_001	S	0	all-pools command
+tests/functional/mount:Linux/mount_loopback	P	15	-
+tests/functional/mount:Linux/mount_null_source	P	0	-
+tests/functional/mount:Linux/umount_unlinked_drain	S	16	tunable,kstat
+tests/functional/mv_files/mv_files_001_pos	P	20	-
+tests/functional/mv_files/mv_files_002_pos	P	25	-
+tests/functional/mv_files/random_creation	P	94	-
+tests/functional/nestedfs/nestedfs_001_pos	P	0	-
+tests/functional/no_space/enospc_001_pos	P	19	-
+tests/functional/no_space/enospc_002_pos	P	21	-
+tests/functional/no_space/enospc_003_pos	S	2	literal testpool
+tests/functional/no_space/enospc_df	P	18	-
+tests/functional/no_space/enospc_ganging	S	25	tunable,large data
+tests/functional/no_space/enospc_rm	P	104	-
+tests/functional/nopwrite/nopwrite_copies	P	6	-
+tests/functional/nopwrite/nopwrite_mtime	P	4	-
+tests/functional/nopwrite/nopwrite_negative	P	7	-
+tests/functional/nopwrite/nopwrite_promoted_clone	P	2	-
+tests/functional/nopwrite/nopwrite_recsize	P	13	-
+tests/functional/nopwrite/nopwrite_sync	P	2	-
+tests/functional/nopwrite/nopwrite_varying_compression	P	10	-
+tests/functional/nopwrite/nopwrite_volume	P	2	-
+tests/functional/online_offline/online_offline_001_pos	P	7	-
+tests/functional/online_offline/online_offline_002_neg	P	7	-
+tests/functional/online_offline/online_offline_003_neg	P	1	-
+tests/functional/pam:FreeBSD/pam_basic	S	5	group:users
+tests/functional/pam:FreeBSD/pam_change_unmounted	S	2	group:users
+tests/functional/pam:FreeBSD/pam_mount_recursively	S	3	group:users,users
+tests/functional/pam:FreeBSD/pam_nounmount	S	0	group:users
+tests/functional/pam:FreeBSD/pam_recursive	S	1	group:users,users
+tests/functional/pam:FreeBSD/pam_short_password	S	1	group:users
+tests/functional/pam:Linux/pam_basic	S	5	group:users
+tests/functional/pam:Linux/pam_change_unmounted	S	2	group:users
+tests/functional/pam:Linux/pam_mount_recursively	S	3	group:users,users
+tests/functional/pam:Linux/pam_nounmount	S	0	group:users
+tests/functional/pam:Linux/pam_recursive	S	1	group:users,users
+tests/functional/pam:Linux/pam_short_password	S	1	group:users
+tests/functional/pool_checkpoint/checkpoint_after_rewind	S	13	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_big_rewind	S	113	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_capacity	S	25	group:tunable,group:all-pools command,tunable,all-pools command,large data
+tests/functional/pool_checkpoint/checkpoint_conf_change	S	0	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_discard	S	7	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_discard_busy	S	0	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_discard_many	S	0	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_indirect	S	107	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_invalid	S	0	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_lun_expsz	S	7	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_open	S	6	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_removal	S	2	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_rewind	S	6	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_ro_rewind	S	7	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_sm_scale	S	10	group:tunable,group:all-pools command,tunable,literal testpool,all-pools command
+tests/functional/pool_checkpoint/checkpoint_twice	S	0	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_vdev_add	S	7	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_zdb	S	59	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_checkpoint/checkpoint_zhack_feat	S	9	group:tunable,group:all-pools command,tunable,all-pools command
+tests/functional/pool_names/pool_names_001_pos	P	25	-
+tests/functional/pool_names/pool_names_002_neg	P	3	-
+tests/functional/poolversion/poolversion_001_pos	P	0	-
+tests/functional/poolversion/poolversion_002_pos	P	0	-
+tests/functional/procfs:Linux/pool_state	S	209	kstat,literal testpool
+tests/functional/procfs:Linux/procfs_list_basic	S	1	kstat
+tests/functional/procfs:Linux/procfs_list_concurrent_readers	S	1	kstat
+tests/functional/procfs:Linux/procfs_list_stale_read	S	1	tunable,kstat
+tests/functional/projectquota/defaultprojectquota_002_pos	S	0	group:users
+tests/functional/projectquota/defaultprojectquota_003_neg	S	0	group:users
+tests/functional/projectquota/defaultprojectquota_004_pos	S	0	group:users
+tests/functional/projectquota/defaultprojectquota_006_pos	S	0	group:users
+tests/functional/projectquota/defaultprojectquota_007_pos	S	0	group:users
+tests/functional/projectquota/projectquota_002_pos	S	0	group:users
+tests/functional/projectquota/projectquota_004_neg	S	0	group:users
+tests/functional/projectquota/projectquota_005_pos	S	0	group:users
+tests/functional/projectquota/projectquota_007_pos	S	0	group:users
+tests/functional/projectquota/projectquota_008_pos	S	0	group:users
+tests/functional/projectquota/projectquota_009_pos	S	0	group:users
+tests/functional/projectquota/projectspace_006_pos	S	2	group:users
+tests/functional/projectquota/projecttree_002_pos	S	0	group:users
+tests/functional/projectquota/projecttree_003_neg	S	0	group:users
+tests/functional/projectquota:Linux/defaultprojectquota_001_pos	S	0	group:users
+tests/functional/projectquota:Linux/defaultprojectquota_005_pos	S	0	group:users
+tests/functional/projectquota:Linux/projectid_001_pos	S	0	group:users
+tests/functional/projectquota:Linux/projectid_002_pos	S	0	group:users
+tests/functional/projectquota:Linux/projectid_003_pos	S	0	group:users
+tests/functional/projectquota:Linux/projectid_004_pos	S	0	group:users
+tests/functional/projectquota:Linux/projectquota_001_pos	S	0	group:users
+tests/functional/projectquota:Linux/projectquota_003_pos	S	0	group:users
+tests/functional/projectquota:Linux/projectquota_006_pos	S	0	group:users
+tests/functional/projectquota:Linux/projectspace_001_pos	S	1	group:users
+tests/functional/projectquota:Linux/projectspace_002_pos	S	0	group:users
+tests/functional/projectquota:Linux/projectspace_003_pos	S	0	group:users
+tests/functional/projectquota:Linux/projectspace_004_pos	S	0	group:users
+tests/functional/projectquota:Linux/projectspace_005_pos	S	0	group:users
+tests/functional/projectquota:Linux/projecttree_001_pos	S	0	group:users
+tests/functional/pyzfs/pyzfs_unittest	S	73	not a ksh test
+tests/functional/quota/quota_001_pos	S	11	large data
+tests/functional/quota/quota_002_pos	S	13	large data
+tests/functional/quota/quota_003_pos	S	13	large data
+tests/functional/quota/quota_004_pos	S	14	large data
+tests/functional/quota/quota_005_pos	P	0	-
+tests/functional/quota/quota_006_neg	P	0	-
+tests/functional/raidz/raidz_001_neg	P	0	-
+tests/functional/raidz/raidz_002_pos	P	300	-
+tests/functional/raidz/raidz_expand_001_pos	S	30	tunable,large data
+tests/functional/raidz/raidz_expand_002_pos	S	53	tunable,large data
+tests/functional/raidz/raidz_expand_003_neg	S	3	tunable,large data
+tests/functional/raidz/raidz_expand_003_pos	S	105	tunable,large data
+tests/functional/raidz/raidz_expand_004_pos	S	119	tunable,all-pools command,large data
+tests/functional/raidz/raidz_expand_005_pos	S	80	tunable,all-pools command,large data
+tests/functional/raidz/raidz_expand_006_neg	P	0	-
+tests/functional/raidz/raidz_expand_007_neg	P	0	-
+tests/functional/raidz/raidz_zinject	S	0	zinject
+tests/functional/redacted_send/redacted_compressed	S	1	tunable
+tests/functional/redacted_send/redacted_contents	S	5	tunable
+tests/functional/redacted_send/redacted_deleted	S	1	tunable
+tests/functional/redacted_send/redacted_disabled_feature	S	1	tunable
+tests/functional/redacted_send/redacted_embedded	S	20	tunable
+tests/functional/redacted_send/redacted_holes	S	7	tunable
+tests/functional/redacted_send/redacted_incrementals	S	7	tunable
+tests/functional/redacted_send/redacted_largeblocks	S	2	tunable
+tests/functional/redacted_send/redacted_many_clones	S	11	tunable
+tests/functional/redacted_send/redacted_max_blkid	S	1	tunable
+tests/functional/redacted_send/redacted_meta_dnode	S	0	tunable
+tests/functional/redacted_send/redacted_mixed_recsize	S	2	tunable
+tests/functional/redacted_send/redacted_mounts	S	1	tunable
+tests/functional/redacted_send/redacted_negative	S	1	tunable,literal testpool
+tests/functional/redacted_send/redacted_origin	S	3	tunable
+tests/functional/redacted_send/redacted_panic	S	42	tunable,large data
+tests/functional/redacted_send/redacted_props	S	4	tunable
+tests/functional/redacted_send/redacted_resume	S	2	tunable
+tests/functional/redacted_send/redacted_size	S	0	tunable
+tests/functional/redacted_send/redacted_volume	S	32	tunable
+tests/functional/redundancy/redundancy_draid	S	98	tunable,large data
+tests/functional/redundancy/redundancy_draid1	P	17	-
+tests/functional/redundancy/redundancy_draid2	S	23	large data
+tests/functional/redundancy/redundancy_draid3	S	34	large data
+tests/functional/redundancy/redundancy_draid_damaged1	S	95	tunable,large data
+tests/functional/redundancy/redundancy_draid_damaged2	S	76	tunable,large data
+tests/functional/redundancy/redundancy_draid_degraded1	S	63	tunable,large data
+tests/functional/redundancy/redundancy_draid_degraded2	S	38	tunable,large data
+tests/functional/redundancy/redundancy_draid_spare1	S	56	tunable
+tests/functional/redundancy/redundancy_draid_spare2	P	13	-
+tests/functional/redundancy/redundancy_draid_spare3	S	66	tunable
+tests/functional/redundancy/redundancy_draid_spare4	S	117	tunable
+tests/functional/redundancy/redundancy_draid_width	P	37	-
+tests/functional/redundancy/redundancy_mirror	S	10	large data
+tests/functional/redundancy/redundancy_raidz	S	76	tunable,large data
+tests/functional/redundancy/redundancy_raidz1	P	7	-
+tests/functional/redundancy/redundancy_raidz2	S	17	large data
+tests/functional/redundancy/redundancy_raidz3	S	19	large data
+tests/functional/redundancy/redundancy_stripe	P	2	-
+tests/functional/refquota/refquota_001_pos	P	2	-
+tests/functional/refquota/refquota_002_pos	P	2	-
+tests/functional/refquota/refquota_003_pos	P	2	-
+tests/functional/refquota/refquota_004_pos	P	2	-
+tests/functional/refquota/refquota_005_pos	P	2	-
+tests/functional/refquota/refquota_006_neg	P	0	-
+tests/functional/refquota/refquota_007_neg	P	0	-
+tests/functional/refquota/refquota_008_neg	S	1	tunable
+tests/functional/refreserv/refreserv_001_pos	P	1	-
+tests/functional/refreserv/refreserv_002_pos	P	1	-
+tests/functional/refreserv/refreserv_003_pos	P	2	-
+tests/functional/refreserv/refreserv_004_pos	P	1	-
+tests/functional/refreserv/refreserv_005_pos	P	0	-
+tests/functional/refreserv/refreserv_multi_raidz	P	1	-
+tests/functional/refreserv/refreserv_raidz	S	31	tunable
+tests/functional/removal/removal_all_vdev	S	0	tunable
+tests/functional/removal/removal_cancel	S	11	tunable
+tests/functional/removal/removal_check_space	S	3	tunable
+tests/functional/removal/removal_condense_export	S	33	tunable
+tests/functional/removal/removal_indirect_class	S	2	tunable
+tests/functional/removal/removal_multiple_indirection	S	6	zinject,tunable,large data
+tests/functional/removal/removal_nopwrite	S	29	tunable
+tests/functional/removal/removal_remap_deadlists	S	10	tunable
+tests/functional/removal/removal_reservation	S	7	tunable,large data
+tests/functional/removal/removal_resume_export	S	31	zinject,tunable,large data
+tests/functional/removal/removal_sanity	S	0	tunable
+tests/functional/removal/removal_with_add	S	11	tunable,large data
+tests/functional/removal/removal_with_create_fs	S	7	tunable,large data
+tests/functional/removal/removal_with_dedup	S	0	tunable
+tests/functional/removal/removal_with_errors	S	10	zinject,tunable
+tests/functional/removal/removal_with_export	S	15	tunable,large data
+tests/functional/removal/removal_with_faulted	S	2	tunable
+tests/functional/removal/removal_with_ganging	S	0	tunable
+tests/functional/removal/removal_with_hole	S	0	tunable
+tests/functional/removal/removal_with_indirect	S	3	tunable,large data
+tests/functional/removal/removal_with_missing_log	S	3	tunable
+tests/functional/removal/removal_with_remove	S	8	tunable,large data
+tests/functional/removal/removal_with_scrub	S	8	tunable,large data
+tests/functional/removal/removal_with_send	S	8	tunable,large data
+tests/functional/removal/removal_with_send_recv	S	8	tunable,large data
+tests/functional/removal/removal_with_snapshot	S	7	tunable,large data
+tests/functional/removal/removal_with_write	S	8	tunable,large data
+tests/functional/removal/removal_with_zdb	S	0	tunable
+tests/functional/removal/remove_attach_mirror	S	52	tunable,large data
+tests/functional/removal/remove_expanded	S	15	tunable
+tests/functional/removal/remove_indirect	S	0	tunable
+tests/functional/removal/remove_mirror	S	2	tunable,large data
+tests/functional/removal/remove_mirror_sanity	S	0	tunable
+tests/functional/removal/remove_raidz	S	1	tunable
+tests/functional/rename_dirs/rename_dirs_001_pos	P	10	-
+tests/functional/renameat2:Linux/renameat2_exchange	P	0	-
+tests/functional/renameat2:Linux/renameat2_noreplace	P	0	-
+tests/functional/renameat2:Linux/renameat2_whiteout	P	0	-
+tests/functional/replacement/attach_import	S	17	tunable
+tests/functional/replacement/attach_multiple	S	18	tunable
+tests/functional/replacement/attach_rebuild	P	25	-
+tests/functional/replacement/attach_resilver	P	13	-
+tests/functional/replacement/attach_resilver_sit_out	S	81	zinject,zed / events,tunable,all-pools command
+tests/functional/replacement/detach	P	15	-
+tests/functional/replacement/rebuild_disabled_feature	S	6	tunable
+tests/functional/replacement/rebuild_multiple	S	14	tunable
+tests/functional/replacement/rebuild_raidz	S	1	tunable
+tests/functional/replacement/replace_import	S	15	tunable
+tests/functional/replacement/replace_rebuild	P	63	-
+tests/functional/replacement/replace_resilver	P	42	-
+tests/functional/replacement/replace_resilver_sit_out	S	176	zinject,zed / events,tunable,large data
+tests/functional/replacement/resilver_restart_001	S	41	zinject,zed / events,tunable
+tests/functional/replacement/resilver_restart_002	S	3	zinject,zed / events,tunable
+tests/functional/replacement/scrub_cancel	S	17	tunable
+tests/functional/reservation/reservation_001_pos	P	0	-
+tests/functional/reservation/reservation_002_pos	P	0	-
+tests/functional/reservation/reservation_003_pos	P	1	-
+tests/functional/reservation/reservation_004_pos	P	0	-
+tests/functional/reservation/reservation_005_pos	P	0	-
+tests/functional/reservation/reservation_006_pos	P	0	-
+tests/functional/reservation/reservation_007_pos	P	0	-
+tests/functional/reservation/reservation_008_pos	P	2	-
+tests/functional/reservation/reservation_009_pos	P	0	-
+tests/functional/reservation/reservation_010_pos	P	0	-
+tests/functional/reservation/reservation_011_pos	P	0	-
+tests/functional/reservation/reservation_012_pos	P	0	-
+tests/functional/reservation/reservation_013_pos	P	1	-
+tests/functional/reservation/reservation_014_pos	P	0	-
+tests/functional/reservation/reservation_015_pos	P	6	-
+tests/functional/reservation/reservation_016_pos	P	6	-
+tests/functional/reservation/reservation_017_pos	P	1	-
+tests/functional/reservation/reservation_018_pos	P	0	-
+tests/functional/reservation/reservation_019_pos	P	0	-
+tests/functional/reservation/reservation_020_pos	P	0	-
+tests/functional/reservation/reservation_021_neg	P	0	-
+tests/functional/reservation/reservation_022_pos	P	0	-
+tests/functional/rootpool/rootpool_002_neg	P	0	-
+tests/functional/rootpool/rootpool_003_neg	P	0	-
+tests/functional/rootpool/rootpool_007_pos	P	0	-
+tests/functional/rsend/recv_dedup	P	0	-
+tests/functional/rsend/recv_dedup_encrypted_zvol	P	6	-
+tests/functional/rsend/recv_dot_name_neg	P	0	-
+tests/functional/rsend/recv_validate_001_neg	P	0	-
+tests/functional/rsend/rsend-exclude_001_pos	P	2	-
+tests/functional/rsend/rsend-exclude_002_pos	P	2	-
+tests/functional/rsend/rsend_001_pos	P	7	-
+tests/functional/rsend/rsend_002_pos	P	5	-
+tests/functional/rsend/rsend_003_pos	P	5	-
+tests/functional/rsend/rsend_004_pos	P	8	-
+tests/functional/rsend/rsend_005_pos	P	10	-
+tests/functional/rsend/rsend_006_pos	P	7	-
+tests/functional/rsend/rsend_007_pos	P	10	-
+tests/functional/rsend/rsend_008_pos	P	0	-
+tests/functional/rsend/rsend_009_pos	P	1	-
+tests/functional/rsend/rsend_010_pos	P	0	-
+tests/functional/rsend/rsend_011_pos	P	7	-
+tests/functional/rsend/rsend_012_pos	P	9	-
+tests/functional/rsend/rsend_013_pos	P	11	-
+tests/functional/rsend/rsend_014_pos	P	8	-
+tests/functional/rsend/rsend_016_neg	P	0	-
+tests/functional/rsend/rsend_019_pos	P	42	-
+tests/functional/rsend/rsend_020_pos	P	18	-
+tests/functional/rsend/rsend_021_pos	P	19	-
+tests/functional/rsend/rsend_022_pos	P	19	-
+tests/functional/rsend/rsend_024_pos	P	16	-
+tests/functional/rsend/rsend_025_pos	P	18	-
+tests/functional/rsend/rsend_026_neg	P	6	-
+tests/functional/rsend/rsend_027_pos	P	20	-
+tests/functional/rsend/rsend_028_neg	P	6	-
+tests/functional/rsend/rsend_029_neg	P	6	-
+tests/functional/rsend/rsend_030_pos	P	18	-
+tests/functional/rsend/rsend_031_pos	P	1	-
+tests/functional/rsend/send-L_toggle	P	1	-
+tests/functional/rsend/send-c_embedded_blocks	P	22	-
+tests/functional/rsend/send-c_incremental	P	17	-
+tests/functional/rsend/send-c_lz4_disabled	P	10	-
+tests/functional/rsend/send-c_mixed_compression	P	11	-
+tests/functional/rsend/send-c_props	P	17	-
+tests/functional/rsend/send-c_recv_dedup	P	0	-
+tests/functional/rsend/send-c_recv_lz4_disabled	P	14	-
+tests/functional/rsend/send-c_resume	P	19	-
+tests/functional/rsend/send-c_stream_size_estimate	P	10	-
+tests/functional/rsend/send-c_verify_contents	P	8	-
+tests/functional/rsend/send-c_verify_ratio	P	55	-
+tests/functional/rsend/send-c_volume	P	2	-
+tests/functional/rsend/send-cpL_varied_recsize	P	21	-
+tests/functional/rsend/send-wR_encrypted_zvol	P	4	-
+tests/functional/rsend/send_doall	P	0	-
+tests/functional/rsend/send_embedded_large_block	P	30	-
+tests/functional/rsend/send_embedded_spill_block	P	30	-
+tests/functional/rsend/send_encrypted_freeobjects	P	0	-
+tests/functional/rsend/send_encrypted_hierarchy	P	6	-
+tests/functional/rsend/send_encrypted_holds	P	0	-
+tests/functional/rsend/send_encrypted_incremental	P	1	-
+tests/functional/rsend/send_encrypted_props	S	4	shares
+tests/functional/rsend/send_encrypted_truncated_files	S	1	all-pools command
+tests/functional/rsend/send_freeobjects	P	1	-
+tests/functional/rsend/send_holds	P	1	-
+tests/functional/rsend/send_hole_birth	S	18	tunable
+tests/functional/rsend/send_invalid	P	0	-
+tests/functional/rsend/send_large_blocks_incremental	P	0	-
+tests/functional/rsend/send_large_blocks_initial	P	0	-
+tests/functional/rsend/send_large_blocks_reverse	P	0	-
+tests/functional/rsend/send_large_microzap_incremental	S	5	tunable
+tests/functional/rsend/send_large_microzap_transitive	S	6	tunable
+tests/functional/rsend/send_leak_keymaps	P	5	-
+tests/functional/rsend/send_mixed_raw	S	2	tunable
+tests/functional/rsend/send_partial_dataset	P	1	-
+tests/functional/rsend/send_raw_ashift	P	16	-
+tests/functional/rsend/send_raw_large_blocks	P	0	-
+tests/functional/rsend/send_raw_spill_block	P	8	-
+tests/functional/rsend/send_realloc_dnode_interior	P	1	-
+tests/functional/rsend/send_realloc_dnode_mixed	P	5	-
+tests/functional/rsend/send_realloc_dnode_nblkptr	P	0	-
+tests/functional/rsend/send_realloc_dnode_resume	S	7	tunable
+tests/functional/rsend/send_realloc_encrypted_files	P	35	-
+tests/functional/rsend/send_realloc_files	P	32	-
+tests/functional/rsend/send_spill_block	P	8	-
+tests/functional/rsend/send_split_large_block	P	2	-
+tests/functional/rsend:Linux/send-c_longname	P	1	-
+tests/functional/rsend:Linux/send_encrypted_files	S	11	all-pools command
+tests/functional/rsend:Linux/send_realloc_dnode_size	P	5	-
+tests/functional/scrub_mirror/scrub_mirror_001_pos	P	0	-
+tests/functional/scrub_mirror/scrub_mirror_002_pos	P	1	-
+tests/functional/scrub_mirror/scrub_mirror_003_pos	P	2	-
+tests/functional/scrub_mirror/scrub_mirror_004_pos	P	2	-
+tests/functional/send_xdr_encoding/xdr_bookmark_raw	P	0	-
+tests/functional/send_xdr_encoding/xdr_bookmark_raw_with_write	P	0	-
+tests/functional/send_xdr_encoding/xdr_incr_from_bookmark	P	0	-
+tests/functional/send_xdr_encoding/xdr_incr_from_redacted	P	0	-
+tests/functional/send_xdr_encoding/xdr_raw	P	0	-
+tests/functional/send_xdr_encoding/xdr_redacted_full	P	0	-
+tests/functional/send_xdr_encoding/xdr_redacted_received	P	0	-
+tests/functional/send_xdr_encoding/xdr_redacted_received_raw	P	0	-
+tests/functional/send_xdr_encoding/xdr_replication	P	0	-
+tests/functional/send_xdr_encoding/xdr_resume	P	0	-
+tests/functional/send_xdr_encoding/xdr_resume_bookmark_raw	P	1	-
+tests/functional/send_xdr_encoding/xdr_resume_bookmark_raw_with_write	P	1	-
+tests/functional/send_xdr_encoding/xdr_resume_raw	P	0	-
+tests/functional/send_xdr_encoding/xdr_resume_redacted	P	0	-
+tests/functional/simd:Linux/simd_supported	S	0	tunable
+tests/functional/slog/slog_001_pos	S	37	all-pools command
+tests/functional/slog/slog_002_pos	S	38	all-pools command
+tests/functional/slog/slog_003_pos	S	80	all-pools command
+tests/functional/slog/slog_004_pos	S	39	all-pools command
+tests/functional/slog/slog_005_pos	S	19	all-pools command
+tests/functional/slog/slog_006_pos	S	39	all-pools command
+tests/functional/slog/slog_007_pos	S	89	all-pools command
+tests/functional/slog/slog_008_neg	S	0	all-pools command
+tests/functional/slog/slog_009_neg	S	4	all-pools command
+tests/functional/slog/slog_010_neg	S	0	all-pools command
+tests/functional/slog/slog_011_neg	S	36	all-pools command
+tests/functional/slog/slog_012_neg	S	22	all-pools command,large data
+tests/functional/slog/slog_013_pos	S	0	all-pools command
+tests/functional/slog/slog_014_pos	S	20	all-pools command
+tests/functional/slog/slog_015_neg	S	43	tunable,all-pools command
+tests/functional/slog/slog_016_pos	S	8	tunable,all-pools command
+tests/functional/slog/slog_replay_fs_001	S	9	all-pools command
+tests/functional/slog/slog_replay_fs_002	S	15	all-pools command
+tests/functional/slog/slog_replay_volume	S	9	all-pools command
+tests/functional/snapdir/snapdir_mount_parallel	P	0	-
+tests/functional/snapdir/snapdir_mount_unmount	P	0	-
+tests/functional/snapdir:Linux/snapdir_admin_create_destroy	S	0	tunable
+tests/functional/snapdir:Linux/snapdir_admin_disabled	S	0	tunable
+tests/functional/snapdir:Linux/snapdir_admin_rename_destroy	S	0	tunable
+tests/functional/snapdir:Linux/snapdir_mount_bind	P	0	-
+tests/functional/snapdir:Linux/snapdir_mount_destroy_defer	S	6	tunable
+tests/functional/snapdir:Linux/snapdir_mount_expire_bind	S	4	tunable
+tests/functional/snapdir:Linux/snapdir_mount_expire_busy	S	9	tunable
+tests/functional/snapdir:Linux/snapdir_mount_expire_idle	S	4	tunable
+tests/functional/snapdir:Linux/snapdir_mount_expire_move	S	4	tunable
+tests/functional/snapdir:Linux/snapdir_mount_fd_hold	S	4	tunable
+tests/functional/snapdir:Linux/snapdir_mount_foreign	P	0	-
+tests/functional/snapdir:Linux/snapdir_mount_move	P	0	-
+tests/functional/snapdir:Linux/snapdir_mount_multiple	P	0	-
+tests/functional/snapdir:Linux/snapdir_mount_no_setuid	S	0	tunable
+tests/functional/snapdir:Linux/snapdir_stat_btime	P	2	-
+tests/functional/snapdir:Linux/snapdir_stat_no_mount	P	0	-
+tests/functional/snapdir:Linux/snapdir_statfs_fsid	P	30	-
+tests/functional/snapshot/clone_001_pos	S	1	tunable
+tests/functional/snapshot/rollback_001_pos	P	0	-
+tests/functional/snapshot/rollback_002_pos	P	0	-
+tests/functional/snapshot/rollback_003_pos	S	0	all-pools command
+tests/functional/snapshot/snapshot_001_pos	P	0	-
+tests/functional/snapshot/snapshot_002_pos	P	0	-
+tests/functional/snapshot/snapshot_003_pos	P	0	-
+tests/functional/snapshot/snapshot_004_pos	P	0	-
+tests/functional/snapshot/snapshot_005_pos	P	0	-
+tests/functional/snapshot/snapshot_006_pos	P	0	-
+tests/functional/snapshot/snapshot_007_pos	P	0	-
+tests/functional/snapshot/snapshot_008_pos	P	0	-
+tests/functional/snapshot/snapshot_009_pos	P	1	-
+tests/functional/snapshot/snapshot_010_pos	P	1	-
+tests/functional/snapshot/snapshot_011_pos	P	0	-
+tests/functional/snapshot/snapshot_012_pos	P	0	-
+tests/functional/snapshot/snapshot_013_pos	P	0	-
+tests/functional/snapshot/snapshot_014_pos	P	3	-
+tests/functional/snapshot/snapshot_017_pos	P	0	-
+tests/functional/snapshot/snapshot_018_pos	P	6	-
+tests/functional/snapused/snapused_001_pos	P	3	-
+tests/functional/snapused/snapused_002_pos	P	2	-
+tests/functional/snapused/snapused_003_pos	P	2	-
+tests/functional/snapused/snapused_004_pos	P	4	-
+tests/functional/snapused/snapused_005_pos	P	0	-
+tests/functional/sparse/sparse_001_pos	P	2	-
+tests/functional/stat/stat_001_pos	P	0	-
+tests/functional/stat/statx_dioalign	S	0	tunable
+tests/functional/suid/suid_write_to_none	P	0	-
+tests/functional/suid/suid_write_to_sgid	P	0	-
+tests/functional/suid/suid_write_to_suid	P	0	-
+tests/functional/suid/suid_write_to_suid_sgid	P	0	-
+tests/functional/suid/suid_write_zil_replay	S	2	all-pools command
+tests/functional/syncfs:Linux/syncfs_suspend	S	7	zinject,kstat
+tests/functional/tmpfile:Linux/tmpfile_001_pos	S	0	not a ksh test
+tests/functional/tmpfile:Linux/tmpfile_002_pos	S	0	not a ksh test
+tests/functional/tmpfile:Linux/tmpfile_003_pos	S	0	not a ksh test
+tests/functional/tmpfile:Linux/tmpfile_stat_mode	S	0	not a ksh test
+tests/functional/trim/autotrim_config	S	76	tunable
+tests/functional/trim/autotrim_integrity	S	20	tunable,large data
+tests/functional/trim/autotrim_trim_integrity	S	45	tunable,large data
+tests/functional/trim/trim_config	S	62	tunable
+tests/functional/trim/trim_integrity	S	22	tunable,large data
+tests/functional/trim/trim_l2arc	S	35	tunable,kstat,all-pools command
+tests/functional/truncate/truncate_001_pos	P	2	-
+tests/functional/truncate/truncate_002_pos	P	0	-
+tests/functional/truncate/truncate_timestamps	P	6	-
+tests/functional/uncached/uncached_dontcache	S	0	kstat
+tests/functional/uncached/uncached_noreuse	S	0	kstat
+tests/functional/unlink/unlinked_fh_accessible	P	0	-
+tests/functional/upgrade/upgrade_readonly_pool	P	1	-
+tests/functional/upgrade/upgrade_userobj_001_pos	P	2	-
+tests/functional/upgrade:Linux/upgrade_projectquota_001_pos	P	14	-
+tests/functional/upgrade:Linux/upgrade_projectquota_002_pos	P	4	-
+tests/functional/user_namespace:Linux/user_namespace_001	P	0	-
+tests/functional/user_namespace:Linux/user_namespace_002	P	3	-
+tests/functional/user_namespace:Linux/user_namespace_003	P	3	-
+tests/functional/user_namespace:Linux/user_namespace_004	P	0	-
+tests/functional/user_namespace:Linux/user_namespace_secpolicy_sys_config	S	0	zed / events
+tests/functional/user_namespace:Linux/user_namespace_secpolicy_zinject	S	0	zinject
+tests/functional/userquota/defaultuserquota_001_pos	S	0	group:users,users
+tests/functional/userquota/defaultuserquota_002_pos	S	1	group:users,users
+tests/functional/userquota/defaultuserquota_003_pos	S	0	group:users,users
+tests/functional/userquota/defaultuserquota_004_neg	S	0	group:users,users
+tests/functional/userquota/defaultuserquota_005_pos	S	0	group:users,users
+tests/functional/userquota/defaultuserquota_006_pos	S	0	group:users,users
+tests/functional/userquota/defaultuserquota_007_pos	S	0	group:users,users
+tests/functional/userquota/defaultuserquota_008_pos	S	0	group:users,users
+tests/functional/userquota/defaultuserquota_009_pos	S	0	group:users,users
+tests/functional/userquota/defaultuserquota_010_neg	S	0	group:users,users
+tests/functional/userquota/defaultuserquota_011_neg	S	0	group:users,users
+tests/functional/userquota/defaultuserquota_012_neg	S	1	group:users,users
+tests/functional/userquota/defaultuserquota_013_neg	S	0	group:users,users
+tests/functional/userquota/groupspace_005_pos	S	2	group:users,users
+tests/functional/userquota/userquota_001_pos	S	0	group:users,users
+tests/functional/userquota/userquota_002_pos	S	1	group:users,users
+tests/functional/userquota/userquota_003_pos	S	0	group:users,users
+tests/functional/userquota/userquota_004_pos	S	1	group:users,users
+tests/functional/userquota/userquota_005_neg	S	0	group:users,users
+tests/functional/userquota/userquota_006_pos	S	0	group:users,users
+tests/functional/userquota/userquota_007_pos	S	1	group:users,users
+tests/functional/userquota/userquota_008_pos	S	0	group:users,users
+tests/functional/userquota/userquota_009_pos	S	0	group:users,users
+tests/functional/userquota/userquota_010_pos	S	0	group:users,users
+tests/functional/userquota/userquota_011_pos	S	0	group:users,users
+tests/functional/userquota/userquota_012_neg	S	0	group:users,users
+tests/functional/userquota/userspace_001_pos	S	1	group:users,users
+tests/functional/userquota/userspace_002_pos	S	0	group:users,users
+tests/functional/userquota/userspace_004_pos	S	0	group:users,users
+tests/functional/userquota/userspace_005_pos	S	2	group:users,users
+tests/functional/userquota/userspace_encrypted	S	2	group:users,users,literal testpool
+tests/functional/userquota/userspace_encrypted_13709	S	0	group:users,users,literal testpool,all-pools command
+tests/functional/userquota/userspace_send_encrypted	S	6	group:users,users,literal testpool
+tests/functional/userquota:Linux/groupspace_001_pos	S	0	group:users,users
+tests/functional/userquota:Linux/groupspace_002_pos	S	0	group:users,users
+tests/functional/userquota:Linux/groupspace_003_pos	S	0	group:users,users
+tests/functional/userquota:Linux/groupspace_004_pos	S	0	group:users,users
+tests/functional/userquota:Linux/userquota_013_pos	S	0	group:users,users
+tests/functional/userquota:Linux/userspace_003_pos	S	0	group:users,users
+tests/functional/vdev_disk:Linux/page_alignment	S	0	not a ksh test
+tests/functional/vdev_zaps/vdev_zaps_001_pos	P	4	-
+tests/functional/vdev_zaps/vdev_zaps_002_pos	P	9	-
+tests/functional/vdev_zaps/vdev_zaps_003_pos	P	6	-
+tests/functional/vdev_zaps/vdev_zaps_004_pos	P	5	-
+tests/functional/vdev_zaps/vdev_zaps_005_pos	P	5	-
+tests/functional/vdev_zaps/vdev_zaps_006_pos	P	4	-
+tests/functional/vdev_zaps/vdev_zaps_007_pos	P	8	-
+tests/functional/vdev_zaps/vdev_zaps_008_pos	P	0	-
+tests/functional/write_dirs/write_dirs_001_pos	P	14	-
+tests/functional/write_dirs/write_dirs_002_pos	P	23	-
+tests/functional/xattr/xattr_001_pos	S	0	group:users
+tests/functional/xattr/xattr_002_neg	S	0	group:users
+tests/functional/xattr/xattr_003_neg	S	0	group:users
+tests/functional/xattr/xattr_004_pos	S	0	group:users
+tests/functional/xattr/xattr_005_pos	S	0	group:users
+tests/functional/xattr/xattr_006_pos	S	0	group:users
+tests/functional/xattr/xattr_007_neg	S	0	group:users
+tests/functional/xattr/xattr_011_pos	S	0	group:users
+tests/functional/xattr/xattr_012_pos	S	4	group:users
+tests/functional/xattr/xattr_013_pos	S	0	group:users
+tests/functional/xattr/xattr_014_pos	S	0	group:users
+tests/functional/xattr/xattr_compat	S	0	group:users,tunable
+tests/functional/zap_shrink/zap_shrink_001_pos	P	23	-
+tests/functional/zoned_uid:Linux/zoned_uid_001_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_002_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_003_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_004_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_005_neg	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_006_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_007_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_008_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_009_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_010_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_011_neg	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_012_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_013_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_014_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_015_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_016_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_017_neg	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_018_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_019_neg	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_020_neg	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_021_neg	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_022_neg	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_023_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_024_neg	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_025_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_026_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_027_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_028_neg	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_029_neg	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_030_pos	S	0	group:users
+tests/functional/zoned_uid:Linux/zoned_uid_031_pos	S	0	group:users
+tests/functional/zpool_influxdb/zpool_influxdb	P	0	-
+tests/functional/zstream/zstream_checksum_001_pos	P	1	-
+tests/functional/zstream/zstream_decompress_001_pos	P	0	-
+tests/functional/zstream/zstream_decompress_002_pos	P	0	-
+tests/functional/zstream/zstream_decompress_003_neg	P	0	-
+tests/functional/zstream/zstream_decompress_004_pos	P	0	-
+tests/functional/zstream/zstream_decompress_005_pos	P	0	-
+tests/functional/zstream/zstream_decompress_006_neg	P	0	-
+tests/functional/zstream/zstream_drop_records_001_pos	P	30	-
+tests/functional/zstream/zstream_dump_001_pos	P	2	-
+tests/functional/zstream/zstream_dump_002_pos	P	1	-
+tests/functional/zstream/zstream_dump_003_pos	P	1	-
+tests/functional/zstream/zstream_dump_004_neg	P	0	-
+tests/functional/zstream/zstream_raw_001_pos	P	9	-
+tests/functional/zstream/zstream_recompress_001_pos	P	2	-
+tests/functional/zstream/zstream_recompress_002_pos	P	2	-
+tests/functional/zstream/zstream_recompress_003_pos	P	0	-
+tests/functional/zstream/zstream_recompress_004_pos	P	0	-
+tests/functional/zstream/zstream_recompress_005_pos	P	0	-
+tests/functional/zstream/zstream_redup_001_pos	P	0	-
+tests/functional/zstream/zstream_selftest_queue_001_pos	P	8	-
+tests/functional/zstream/zstream_validate_001_neg	P	0	-
+tests/functional/zstream/zstream_validate_002_neg	P	0	-
+tests/functional/zvol/zvol_ENOSPC/zvol_ENOSPC_001_pos	S	0	group:tunable
+tests/functional/zvol/zvol_cli/zvol_cli_001_pos	S	0	group:tunable
+tests/functional/zvol/zvol_cli/zvol_cli_002_pos	S	0	group:tunable
+tests/functional/zvol/zvol_cli/zvol_cli_003_neg	S	0	group:tunable
+tests/functional/zvol/zvol_misc/zvol_misc_002_pos	S	1	group:tunable
+tests/functional/zvol/zvol_misc/zvol_misc_hierarchy	S	0	group:tunable
+tests/functional/zvol/zvol_misc/zvol_misc_rename_inuse	S	1	group:tunable,tunable
+tests/functional/zvol/zvol_misc/zvol_misc_snapdev	S	15	group:tunable,tunable
+tests/functional/zvol/zvol_misc/zvol_misc_trim	S	77	group:tunable,tunable
+tests/functional/zvol/zvol_misc/zvol_misc_volmode	S	45	group:tunable,tunable
+tests/functional/zvol/zvol_misc/zvol_misc_zil	S	3	group:tunable,tunable
+tests/functional/zvol/zvol_misc:Linux/zvol_misc_fua	S	11	group:tunable,tunable
+tests/functional/zvol/zvol_stress/zvol_stress	S	8	zinject,tunable,all-pools command
+tests/functional/zvol/zvol_stress/zvol_stress_destroy	P	65	-
+tests/functional/zvol/zvol_swap/zvol_swap_001_pos	S	0	group:tunable,tunable
+tests/functional/zvol/zvol_swap/zvol_swap_002_pos	S	0	group:tunable,tunable
+tests/functional/zvol/zvol_swap/zvol_swap_004_pos	S	14	group:tunable,tunable

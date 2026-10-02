@@ -132,7 +132,8 @@ if [ -z ${1:-} ]; then
     fi
 
     daemonize -c /var/tmp -p vm${i}.pid -o vm${i}log.txt -- \
-      $SSH zfs@$IP $TESTS $OS $i $VMs $extra $CI_TYPE
+      $SSH zfs@$IP env ZTS_RUNNERS=${ZTS_RUNNERS:-} \
+      $TESTS $OS $i $VMs $extra $CI_TYPE
     # handly line by line and add info prefix
     stdbuf -oL tail -fq vm${i}log.txt \
       | while read -r line; do prefix "$i" "$line" "$VMs"; done &
@@ -245,6 +246,64 @@ elif [ "$BUILD_BUILTIN" == "1" ] ; then
   do_builtin_build &
 fi
 
+# Run the tests that can share a VM on $ZTS_RUNNERS concurrent
+# runners, each with its own pool names and directories, then run
+# the rest one at a time.
+function zts_parallel() {
+  local d=/var/tmp/zts-parallel
+  local s=$HOME/zfs/.github/workflows/scripts
+  local rf=$TDIR/runfiles
+  local runs rv=0 n i pid f
+  local -a lists=() pids=()
+
+  case "$OS" in
+    freebsd*) runs="$rf/common.run,$rf/freebsd.run" ;;
+    *) runs="$rf/common.run,$rf/linux.run" ;;
+  esac
+  if [ -n "${RUNFILES:-}" ]; then
+    runs="$rf/$RUNFILES"
+  fi
+
+  mapfile -t lists < <(python3 $s/zts-parallel.py \
+    --runfiles "$runs" --list $s/zts-parallel.tsv --part $TAGS \
+    --runners "$ZTS_RUNNERS" --outdir $d)
+  n=$((${#lists[@]} - 1))
+  if [ "$n" -lt 1 ]; then
+    echo "zts-parallel.py produced no runfiles"
+    return 1
+  fi
+
+  for ((i = 1; i <= n; i++)); do
+    [ -n "${lists[$((i - 1))]}" ] || continue
+    mkdir -p $d/run$i
+    chmod 1777 $d/run$i
+    (
+      ZTS_INSTANCE=_p$i $TDIR/zfs-tests.sh -vKO -s 3GB \
+        -d $d/run$i -r "${lists[$((i - 1))]}" && r=0 || r=$?
+      echo $r > $d/rc$i
+    ) &
+    pids+=($!)
+  done
+  for pid in "${pids[@]}"; do
+    wait $pid
+  done
+  for ((i = 1; i <= n; i++)); do
+    if [ -s $d/rc$i ] && [ "$(cat $d/rc$i)" != 0 ]; then
+      rv=$(cat $d/rc$i)
+    fi
+  done
+
+  if [ -n "${lists[$n]}" ]; then
+    $TDIR/zfs-tests.sh -vKO -s 3GB -r "${lists[$n]}" || rv=$?
+  fi
+  for f in /var/tmp/test_results-par-*/current/log; do
+    if [ -f "$f" ] && [ -d /var/tmp/test_results/current ]; then
+      cat "$f" >> /var/tmp/test_results/current/log
+    fi
+  done
+  return $rv
+}
+
 # run functional testings and save exitcode
 cd /var/tmp
 TAGS=$NUM/$DEN
@@ -252,7 +311,11 @@ sudo dmesg -c > dmesg-prerun.txt
 mount > mount.txt
 df -h > df-prerun.txt
 RV=0
-$TDIR/zfs-tests.sh -vKO -s 3GB -T $TAGS || RV=$?
+if [ -z "${ZTS_RUNNERS:-}" ]; then
+  $TDIR/zfs-tests.sh -vKO -s 3GB -T $TAGS || RV=$?
+else
+  zts_parallel || RV=$?
+fi
 
 df -h > df-postrun.txt
 echo $RV > tests-exitcode.txt

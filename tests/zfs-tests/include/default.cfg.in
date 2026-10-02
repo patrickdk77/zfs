@@ -67,10 +67,10 @@ export FIO_SCRIPTS=$STF_SUITE/tests/perf/fio
 export PERF_SCRIPTS=$STF_SUITE/tests/perf/scripts
 
 # some test pool names
-export TESTPOOL=testpool
-export TESTPOOL1=testpool1
-export TESTPOOL2=testpool2
-export TESTPOOL3=testpool3
+export TESTPOOL=testpool${ZTS_INSTANCE}
+export TESTPOOL1=testpool1${ZTS_INSTANCE}
+export TESTPOOL2=testpool2${ZTS_INSTANCE}
+export TESTPOOL3=testpool3${ZTS_INSTANCE}
 export PERFPOOL=${PERFPOOL:-perfpool}
 
 # some test file system names
