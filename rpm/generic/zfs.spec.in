@@ -420,7 +420,8 @@ find %{?buildroot}%{_bindir} \
     -or -name zilstat \) \
     -exec %{__sed} -i 's|^#!.*|#!%{__python}|' {} \;
 find %{?buildroot}%{_datadir} \
-    \( -name test-runner.py -or -name zts-report.py \) \
+    \( -name test-runner.py -or -name zts-report.py \
+    -or -name zts-parallel.py \) \
     -exec %{__sed} -i 's|^#!.*|#!%{__python}|' {} \;
 %endif
 

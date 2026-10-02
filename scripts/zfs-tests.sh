@@ -44,6 +44,7 @@ ZFS_DMESG="$STF_SUITE/callbacks/zfs_dmesg.ksh"
 UNAME=$(uname)
 RERUN=""
 KMEMLEAK=""
+JOBS=""
 
 # Override some defaults if on FreeBSD
 if [ "$UNAME" = "FreeBSD" ] ; then
@@ -365,6 +366,8 @@ OPTIONS:
 	-m          Enable kmemleak reporting (Linux only)
 	-n NFSFILE  Use the nfsfile to determine the NFS configuration
 	-I NUM      Number of iterations
+	-j JOBS     Run tests that can share the system on JOBS
+	            runners, or auto to size by CPUs and memory
 	-d DIR      Use world-writable DIR for files and loopback devices
 	-s SIZE     Use vdevs of SIZE (default: 4G)
 	-r RUNFILES Run tests in RUNFILES (default: ${DEFAULT_RUNFILES})
@@ -397,7 +400,8 @@ $0 -x
 EOF
 }
 
-while getopts 'hvqxkKfScRmOn:d:Ds:r:?t:T:u:I:' OPTION; do
+ORIG_ARGS=("$@")
+while getopts 'hvqxkKfScRmOn:d:Ds:r:?t:T:u:I:j:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -454,6 +458,9 @@ while getopts 'hvqxkKfScRmOn:d:Ds:r:?t:T:u:I:' OPTION; do
 		if [ "$ITERATIONS" -le 0 ]; then
 			fail "Iterations must be greater than 0."
 		fi
+		;;
+	j)
+		JOBS="$OPTARG"
 		;;
 	s)
 		FILESIZE="$OPTARG"
@@ -616,6 +623,66 @@ fi
 #
 if [ "$CLEANUPALL" = "yes" ]; then
 	cleanup_all
+fi
+
+run_parallel() {
+	local gen=${ZTS_PARALLEL:-${TEST_RUNNER%/*}/zts-parallel.py}
+	local d="$FILEDIR/zts-parallel.$$"
+	local cur=/var/tmp/test_results/current
+	local o n i r f pid rv=0 OPTIND=1
+	local -a lists=() pids=() args=()
+
+	while getopts 'hvqxkKfScRmOn:d:Ds:r:?t:T:u:I:j:' o \
+	    "${ORIG_ARGS[@]}"; do
+		case $o in
+		n|s|I)
+			args+=("-$o" "$OPTARG")
+			;;
+		c|d|h|j|r|t|T|u|x|\?)
+			;;
+		*)
+			args+=("-$o")
+			;;
+		esac
+	done
+
+	mapfile -t lists < <("$gen" --runfiles "$RUNFILES" \
+	    --list "$RUNFILE_DIR/parallel.tsv" --tags "$TAGS" \
+	    --runners "$JOBS" --outdir "$d")
+	n=$((${#lists[@]} - 1))
+	[ "$n" -ge 1 ] || fail "$gen produced no runfiles"
+
+	for ((i = 1; i <= n; i++)); do
+		[ -n "${lists[i - 1]}" ] || continue
+		mkdir -p "$d/run$i" && chmod 1777 "$d/run$i"
+		ZTS_INSTANCE="_p$i" "$0" "${args[@]}" -d "$d/run$i" \
+		    -r "${lists[i - 1]}" &
+		pids+=("$!")
+	done
+	for pid in "${pids[@]}"; do
+		wait "$pid"
+		r=$?
+		[ "$r" -gt "$rv" ] && rv=$r
+	done
+
+	if [ -n "${lists[n]}" ]; then
+		"$0" "${args[@]}" -d "$FILEDIR" -r "${lists[n]}"
+		r=$?
+		[ "$r" -gt "$rv" ] && rv=$r
+	fi
+	for f in /var/tmp/test_results-par-*/current/log; do
+		if [ -f "$f" ] && [ -d "$cur" ]; then
+			cat "$f" >> "$cur/log"
+		fi
+	done
+	rm -rf "$d"
+	return "$rv"
+}
+
+if [ -n "$JOBS" ] && [ "$JOBS" != "1" ] && [ -z "$SINGLETEST" ] &&
+    [ -z "$KMEMLEAK" ] && [ "$STACK_TRACER" != "yes" ]; then
+	run_parallel
+	exit $?
 fi
 
 #
