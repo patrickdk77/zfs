@@ -15,6 +15,11 @@ on:
         required: false
         default: ""
         description: "(optional) Only run on this specific OS (like 'fedora44' or 'alpine3-24')"
+      zts_runners:
+        type: string
+        required: false
+        default: ""
+        description: "(optional) ZTS runners per test VM, a number or 'auto' for one per CPU; empty runs ZTS as before"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -141,6 +146,7 @@ jobs:
       run: .github/workflows/scripts/qemu-6-tests.sh
       env:
         CI_TYPE: ${{ needs.test-config.outputs.ci_type }}
+        ZTS_RUNNERS: ${{ github.event.inputs.zts_runners }}
 
     - name: Prepare artifacts
       if: always()
