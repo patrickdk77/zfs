@@ -670,7 +670,7 @@ run_parallel() {
 		r=$?
 		[ "$r" -gt "$rv" ] && rv=$r
 	fi
-	for f in /var/tmp/test_results-par-*/current/log; do
+	for f in /var/tmp/test_results_p*/current/log; do
 		if [ -f "$f" ] && [ -d "$cur" ]; then
 			cat "$f" >> "$cur/log"
 		fi
@@ -839,6 +839,7 @@ msg "${TEST_RUNNER}" \
     "${KMEMLEAK:+-m}" \
     "${KMSG:+-K}" \
     "${TIMEOUT_DEBUG:+-O}" \
+    "${ZTS_INSTANCE:+-o /var/tmp/test_results$ZTS_INSTANCE}" \
     "-c \"${RUNFILES}\"" \
     "-T \"${TAGS}\"" \
     "-i \"${STF_SUITE}\"" \
@@ -850,6 +851,7 @@ msg "${TEST_RUNNER}" \
     ${KMEMLEAK:+-m} \
     ${KMSG:+-K} \
     ${TIMEOUT_DEBUG:+-O} \
+    ${ZTS_INSTANCE:+-o "/var/tmp/test_results$ZTS_INSTANCE"} \
     -c "${RUNFILES}" \
     -T "${TAGS}" \
     -i "${STF_SUITE}" \
