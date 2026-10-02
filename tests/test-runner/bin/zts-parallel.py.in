@@ -1,21 +1,24 @@
-#!/usr/bin/env python3
+#!/usr/bin/env @PYTHON_SHEBANG@
 # SPDX-License-Identifier: CDDL-1.0
 """
-Split this VM's share of the ZTS runfiles into runfiles for parallel
-runners plus one runfile of tests that must run alone.
+Split the ZTS runfiles into runfiles for parallel runners plus one
+runfile of tests that must run alone.
 
-zts-parallel.py --runfiles A.run,B.run --list zts-parallel.tsv
-    --part N/D --runners R|auto --outdir DIR
+zts-parallel.py --runfiles A.run,B.run --list parallel.tsv
+    --tags TAG,TAG --runners N|auto --outdir DIR
 
-Writes DIR/par-<i>.<runfile> for i in 1..R and DIR/serial.<runfile>,
-and prints the comma separated runfile lists, one line per runner
-and a last line for the serial run.
+Writes DIR/par-<i>.<runfile> for each runner and DIR/serial.<runfile>,
+and prints the comma separated runfile lists, one line per runner and
+a last line for the serial run.  With auto, the runner count is the
+smallest of the online CPUs, the available memory divided by
+ZTS_RUNNER_MEM MiB (default 4096), and ZTS_RUNNER_MAX (default 8).
 """
 
 import argparse
 import heapq
 import os
 import re
+import sys
 
 SECTION = re.compile(r'^\[([^\]]+)\]\n(.*?)(?=^\[|\Z)', re.M | re.S)
 TESTS = re.compile(r'^tests\s*=\s*\[(.*?)\]', re.M | re.S)
@@ -38,12 +41,6 @@ def parse(path):
     return head, secs
 
 
-def part_tags(sections, num, den):
-    last = sorted({tags[-1] for _, _, _, tags in sections
-                   if tags and tags[-1] != 'functional'})
-    return {t for i, t in enumerate(last, 1) if i % den == num - 1}
-
-
 def load_list(path):
     cls = {}
     for line in open(path):
@@ -52,6 +49,32 @@ def load_list(path):
         f = line.rstrip('\n').split('\t')
         cls[f[0]] = (f[1], int(f[2]))
     return cls
+
+
+def available_memory():
+    try:
+        for line in open('/proc/meminfo'):
+            if line.startswith('MemAvailable:'):
+                return int(line.split()[1]) * 1024
+    except OSError:
+        pass
+    page = os.sysconf('SC_PAGE_SIZE')
+    try:
+        return os.sysconf('SC_AVPHYS_PAGES') * page
+    except (ValueError, OSError):
+        return os.sysconf('SC_PHYS_PAGES') * page
+
+
+def auto_runners():
+    cpus = os.cpu_count() or 1
+    mem = available_memory()
+    per = int(os.environ.get('ZTS_RUNNER_MEM', '4096')) << 20
+    cap = int(os.environ.get('ZTS_RUNNER_MAX', '8'))
+    n = max(1, min(cpus, mem // per, cap))
+    sys.stderr.write('zts-parallel: %d runners (%d CPUs, %.1f GiB '
+                     'available, %d MiB per runner, max %d)\n' %
+                     (n, cpus, mem / (1 << 30), per >> 20, cap))
+    return n
 
 
 def section_text(name, body, tests):
@@ -72,22 +95,19 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--runfiles', required=True)
     ap.add_argument('--list', required=True)
-    ap.add_argument('--part', default='1/1')
+    ap.add_argument('--tags', default='functional')
     ap.add_argument('--runners', default='auto')
     ap.add_argument('--outdir', required=True)
     ap.add_argument('--results', default='/var/tmp/test_results')
     a = ap.parse_args()
 
     if a.runners == 'auto':
-        runners = os.cpu_count() or 1
+        runners = auto_runners()
     else:
         runners = max(1, int(a.runners))
-    num, den = (int(x) for x in a.part.split('/'))
+    want = set(a.tags.split(','))
     cls = load_list(a.list)
-
     files = [(p, *parse(p)) for p in a.runfiles.split(',')]
-    allsecs = [s for _, _, secs in files for s in secs]
-    want = part_tags(allsecs, num, den)
 
     par = []
     for path, head, secs in files:

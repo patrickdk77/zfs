@@ -6,6 +6,7 @@ include $(srcdir)/%D%/zfs-tests/Makefile.am
 scripts_test_runner_bindir = $(datadir)/$(PACKAGE)/test-runner/bin
 scripts_test_runner_bin_SCRIPTS = \
 	%D%/test-runner/bin/test-runner.py \
+	%D%/test-runner/bin/zts-parallel.py \
 	%D%/test-runner/bin/zts-report.py
 
 SUBSTFILES += $(scripts_test_runner_bin_SCRIPTS)
@@ -23,6 +24,7 @@ dist_scripts_runfiles_DATA = \
 	%D%/runfiles/freebsd.run \
 	%D%/runfiles/linux.run \
 	%D%/runfiles/longevity.run \
+	%D%/runfiles/parallel.tsv \
 	%D%/runfiles/perf-regression.run \
 	%D%/runfiles/sanity.run \
 	%D%/runfiles/sunos.run
