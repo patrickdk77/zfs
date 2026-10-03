@@ -39,20 +39,20 @@ tests/functional/atime/atime_003_pos	P	10	-
 tests/functional/atime/root_atime_off	P	6	-
 tests/functional/atime/root_atime_on	P	10	-
 tests/functional/atime/root_relatime_on	P	10	-
-tests/functional/bclone/bclone_crossfs_corner_cases_limited	P	142	-
-tests/functional/bclone/bclone_crossfs_data	P	28	-
-tests/functional/bclone/bclone_crossfs_embedded	P	11	-
-tests/functional/bclone/bclone_crossfs_hole	P	20	-
-tests/functional/bclone/bclone_diffprops_all	S	6	tunable
-tests/functional/bclone/bclone_diffprops_checksum	S	131	tunable
-tests/functional/bclone/bclone_diffprops_compress	S	47	tunable
-tests/functional/bclone/bclone_diffprops_copies	S	14	tunable
-tests/functional/bclone/bclone_diffprops_recordsize	S	22	tunable
-tests/functional/bclone/bclone_prop_sync	P	17	-
-tests/functional/bclone/bclone_samefs_corner_cases_limited	P	159	-
-tests/functional/bclone/bclone_samefs_data	P	29	-
-tests/functional/bclone/bclone_samefs_embedded	P	12	-
-tests/functional/bclone/bclone_samefs_hole	P	22	-
+tests/functional/bclone/bclone_crossfs_corner_cases_limited	S	142	failed with parallel runners,group failed with parallel runners
+tests/functional/bclone/bclone_crossfs_data	S	28	failed with parallel runners,group failed with parallel runners
+tests/functional/bclone/bclone_crossfs_embedded	S	11	failed with parallel runners,group failed with parallel runners
+tests/functional/bclone/bclone_crossfs_hole	S	20	failed with parallel runners,group failed with parallel runners
+tests/functional/bclone/bclone_diffprops_all	S	6	tunable,group failed with parallel runners
+tests/functional/bclone/bclone_diffprops_checksum	S	131	tunable,group failed with parallel runners
+tests/functional/bclone/bclone_diffprops_compress	S	47	tunable,group failed with parallel runners
+tests/functional/bclone/bclone_diffprops_copies	S	14	tunable,group failed with parallel runners
+tests/functional/bclone/bclone_diffprops_recordsize	S	22	tunable,group failed with parallel runners
+tests/functional/bclone/bclone_prop_sync	S	17	group failed with parallel runners
+tests/functional/bclone/bclone_samefs_corner_cases_limited	S	159	group failed with parallel runners
+tests/functional/bclone/bclone_samefs_data	S	29	group failed with parallel runners
+tests/functional/bclone/bclone_samefs_embedded	S	12	group failed with parallel runners
+tests/functional/bclone/bclone_samefs_hole	S	22	group failed with parallel runners
 tests/functional/block_cloning/block_cloning_after_device_removal	P	1	-
 tests/functional/block_cloning/block_cloning_after_trunc	P	14	-
 tests/functional/block_cloning/block_cloning_clone_mmap_cached	P	9	-
@@ -192,8 +192,8 @@ tests/functional/channel_program/synctask_core/tst.snapshot_simple	S	0	group:lit
 tests/functional/channel_program/synctask_core/tst.terminate_by_signal	S	18	group:literal testpool
 tests/functional/chattr:Linux/chattr_001_pos	S	0	group:users,users
 tests/functional/chattr:Linux/chattr_002_neg	S	0	group:users,users
-tests/functional/checksum/filetest_001_pos	P	36	-
-tests/functional/checksum/filetest_002_pos	P	17	-
+tests/functional/checksum/filetest_001_pos	S	36	failed with parallel runners
+tests/functional/checksum/filetest_002_pos	S	17	failed with parallel runners
 tests/functional/checksum/run_blake3_test	P	6	-
 tests/functional/checksum/run_edonr_test	P	0	-
 tests/functional/checksum/run_sha2_test	P	29	-
@@ -337,29 +337,29 @@ tests/functional/cli_root/zfs_load-key/zfs_load-key_https	P	1	-
 tests/functional/cli_root/zfs_load-key/zfs_load-key_location	P	0	-
 tests/functional/cli_root/zfs_load-key/zfs_load-key_noop	P	0	-
 tests/functional/cli_root/zfs_load-key/zfs_load-key_recursive	P	1	-
-tests/functional/cli_root/zfs_mount/zfs_mount_001_pos	P	0	-
-tests/functional/cli_root/zfs_mount/zfs_mount_002_pos	P	0	-
-tests/functional/cli_root/zfs_mount/zfs_mount_003_pos	P	0	-
-tests/functional/cli_root/zfs_mount/zfs_mount_004_pos	P	0	-
-tests/functional/cli_root/zfs_mount/zfs_mount_005_pos	P	0	-
-tests/functional/cli_root/zfs_mount/zfs_mount_007_pos	P	0	-
-tests/functional/cli_root/zfs_mount/zfs_mount_009_neg	P	0	-
-tests/functional/cli_root/zfs_mount/zfs_mount_010_neg	P	0	-
-tests/functional/cli_root/zfs_mount/zfs_mount_011_neg	P	0	-
-tests/functional/cli_root/zfs_mount/zfs_mount_012_pos	P	0	-
-tests/functional/cli_root/zfs_mount/zfs_mount_all_001_pos	P	6	-
-tests/functional/cli_root/zfs_mount/zfs_mount_all_fail	P	1	-
-tests/functional/cli_root/zfs_mount/zfs_mount_all_mountpoints	P	2	-
-tests/functional/cli_root/zfs_mount/zfs_mount_encrypted	S	0	all-pools command
-tests/functional/cli_root/zfs_mount/zfs_mount_recursive	P	1	-
-tests/functional/cli_root/zfs_mount/zfs_mount_remount	P	1	-
-tests/functional/cli_root/zfs_mount/zfs_mount_ro_rw	P	1	-
-tests/functional/cli_root/zfs_mount/zfs_mount_test_race	S	0	all-pools command
-tests/functional/cli_root/zfs_mount:Linux/zfs_mount_006_pos	P	0	-
-tests/functional/cli_root/zfs_mount:Linux/zfs_mount_008_pos	P	0	-
-tests/functional/cli_root/zfs_mount:Linux/zfs_mount_013_pos	P	0	-
-tests/functional/cli_root/zfs_mount:Linux/zfs_mount_014_neg	P	0	-
-tests/functional/cli_root/zfs_mount:Linux/zfs_multi_mount	P	0	-
+tests/functional/cli_root/zfs_mount/zfs_mount_001_pos	S	0	group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_002_pos	S	0	group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_003_pos	S	0	group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_004_pos	S	0	group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_005_pos	S	0	group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_007_pos	S	0	group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_009_neg	S	0	failed with parallel runners,group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_010_neg	S	0	group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_011_neg	S	0	group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_012_pos	S	0	group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_all_001_pos	S	6	group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_all_fail	S	1	group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_all_mountpoints	S	2	group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_encrypted	S	0	all-pools command,group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_recursive	S	1	failed with parallel runners,group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_remount	S	1	group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_ro_rw	S	1	failed with parallel runners,group failed with parallel runners
+tests/functional/cli_root/zfs_mount/zfs_mount_test_race	S	0	all-pools command,group failed with parallel runners
+tests/functional/cli_root/zfs_mount:Linux/zfs_mount_006_pos	S	0	group failed with parallel runners
+tests/functional/cli_root/zfs_mount:Linux/zfs_mount_008_pos	S	0	group failed with parallel runners
+tests/functional/cli_root/zfs_mount:Linux/zfs_mount_013_pos	S	0	group failed with parallel runners
+tests/functional/cli_root/zfs_mount:Linux/zfs_mount_014_neg	S	0	group failed with parallel runners
+tests/functional/cli_root/zfs_mount:Linux/zfs_multi_mount	S	0	group failed with parallel runners
 tests/functional/cli_root/zfs_program/zfs_channel_program_support	P	0	-
 tests/functional/cli_root/zfs_program/zfs_program_json	P	0	-
 tests/functional/cli_root/zfs_promote/zfs_promote_001_pos	P	0	-
@@ -428,7 +428,7 @@ tests/functional/cli_root/zfs_rewrite/zfs_rewrite	P	6	-
 tests/functional/cli_root/zfs_rewrite/zfs_rewrite_physical	P	0	-
 tests/functional/cli_root/zfs_rewrite/zfs_rewrite_skip_clone	P	6	-
 tests/functional/cli_root/zfs_rewrite/zfs_rewrite_skip_snapshot	P	4	-
-tests/functional/cli_root/zfs_rollback/zfs_rollback_001_pos	P	57	-
+tests/functional/cli_root/zfs_rollback/zfs_rollback_001_pos	S	57	failed with parallel runners
 tests/functional/cli_root/zfs_rollback/zfs_rollback_002_pos	P	3	-
 tests/functional/cli_root/zfs_rollback/zfs_rollback_003_neg	P	0	-
 tests/functional/cli_root/zfs_rollback/zfs_rollback_004_neg	P	1	-
@@ -641,7 +641,7 @@ tests/functional/cli_root/zpool_export/zpool_export_003_neg	P	0	-
 tests/functional/cli_root/zpool_export/zpool_export_004_pos	P	1	-
 tests/functional/cli_root/zpool_export/zpool_export_005_neg	P	0	-
 tests/functional/cli_root/zpool_export/zpool_export_parallel_admin	S	0	zinject
-tests/functional/cli_root/zpool_export/zpool_export_parallel_pos	S	49	zinject,tunable,cachefile/hostid,all-pools command
+tests/functional/cli_root/zpool_export/zpool_export_parallel_pos	S	49	zinject,tunable,cachefile/hostid,all-pools command,failed with parallel runners
 tests/functional/cli_root/zpool_get/vdev_get_001_pos	P	0	-
 tests/functional/cli_root/zpool_get/vdev_get_all	P	3	-
 tests/functional/cli_root/zpool_get/zpool_get_001_pos	P	0	-
@@ -719,7 +719,7 @@ tests/functional/cli_root/zpool_initialize/zpool_initialize_unsupported_vdevs	P	
 tests/functional/cli_root/zpool_initialize/zpool_initialize_verify_checksums	P	14	-
 tests/functional/cli_root/zpool_initialize/zpool_initialize_verify_initialized	S	3	tunable
 tests/functional/cli_root/zpool_initialize/zpool_initialize_zero	P	27	-
-tests/functional/cli_root/zpool_iostat/zpool_iostat_interval_all	P	5	-
+tests/functional/cli_root/zpool_iostat/zpool_iostat_interval_all	S	5	failed with parallel runners
 tests/functional/cli_root/zpool_iostat/zpool_iostat_interval_some	S	4	all-pools command
 tests/functional/cli_root/zpool_labelclear/zpool_labelclear_active	P	0	-
 tests/functional/cli_root/zpool_labelclear/zpool_labelclear_exported	P	1	-
@@ -739,7 +739,7 @@ tests/functional/cli_root/zpool_remove/zpool_remove_001_neg	P	1	-
 tests/functional/cli_root/zpool_remove/zpool_remove_002_pos	P	0	-
 tests/functional/cli_root/zpool_remove/zpool_remove_003_pos	P	0	-
 tests/functional/cli_root/zpool_reopen:Linux/zpool_reopen_001_pos	P	17	-
-tests/functional/cli_root/zpool_reopen:Linux/zpool_reopen_002_pos	P	17	-
+tests/functional/cli_root/zpool_reopen:Linux/zpool_reopen_002_pos	S	17	failed with parallel runners
 tests/functional/cli_root/zpool_reopen:Linux/zpool_reopen_003_pos	S	35	zinject
 tests/functional/cli_root/zpool_reopen:Linux/zpool_reopen_004_pos	S	21	zinject
 tests/functional/cli_root/zpool_reopen:Linux/zpool_reopen_005_pos	S	47	zinject
@@ -831,7 +831,7 @@ tests/functional/cli_root/zpool_upgrade/zpool_upgrade_003_pos	P	2	-
 tests/functional/cli_root/zpool_upgrade/zpool_upgrade_004_pos	P	89	-
 tests/functional/cli_root/zpool_upgrade/zpool_upgrade_005_neg	P	0	-
 tests/functional/cli_root/zpool_upgrade/zpool_upgrade_006_neg	P	0	-
-tests/functional/cli_root/zpool_upgrade/zpool_upgrade_007_pos	P	64	-
+tests/functional/cli_root/zpool_upgrade/zpool_upgrade_007_pos	S	64	failed with parallel runners
 tests/functional/cli_root/zpool_upgrade/zpool_upgrade_008_pos	P	46	-
 tests/functional/cli_root/zpool_upgrade/zpool_upgrade_009_neg	P	2	-
 tests/functional/cli_root/zpool_upgrade/zpool_upgrade_features_001_pos	S	1	literal testpool
@@ -1187,7 +1187,7 @@ tests/functional/mv_files/mv_files_002_pos	P	25	-
 tests/functional/mv_files/random_creation	P	94	-
 tests/functional/nestedfs/nestedfs_001_pos	P	0	-
 tests/functional/no_space/enospc_001_pos	P	19	-
-tests/functional/no_space/enospc_002_pos	P	21	-
+tests/functional/no_space/enospc_002_pos	S	21	failed with parallel runners
 tests/functional/no_space/enospc_003_pos	S	2	literal testpool
 tests/functional/no_space/enospc_df	P	18	-
 tests/functional/no_space/enospc_ganging	S	25	tunable,large data
@@ -1199,7 +1199,7 @@ tests/functional/nopwrite/nopwrite_promoted_clone	P	2	-
 tests/functional/nopwrite/nopwrite_recsize	P	13	-
 tests/functional/nopwrite/nopwrite_sync	P	2	-
 tests/functional/nopwrite/nopwrite_varying_compression	P	10	-
-tests/functional/nopwrite/nopwrite_volume	P	2	-
+tests/functional/nopwrite/nopwrite_volume	S	2	failed with parallel runners
 tests/functional/online_offline/online_offline_001_pos	P	7	-
 tests/functional/online_offline/online_offline_002_neg	P	7	-
 tests/functional/online_offline/online_offline_003_neg	P	1	-
@@ -1423,7 +1423,7 @@ tests/functional/rootpool/rootpool_002_neg	P	0	-
 tests/functional/rootpool/rootpool_003_neg	P	0	-
 tests/functional/rootpool/rootpool_007_pos	P	0	-
 tests/functional/rsend/recv_dedup	P	0	-
-tests/functional/rsend/recv_dedup_encrypted_zvol	P	6	-
+tests/functional/rsend/recv_dedup_encrypted_zvol	S	6	failed with parallel runners
 tests/functional/rsend/recv_dot_name_neg	P	0	-
 tests/functional/rsend/recv_validate_001_neg	P	0	-
 tests/functional/rsend/rsend-exclude_001_pos	P	2	-
@@ -1520,7 +1520,7 @@ tests/functional/send_xdr_encoding/xdr_redacted_received_raw	P	0	-
 tests/functional/send_xdr_encoding/xdr_replication	P	0	-
 tests/functional/send_xdr_encoding/xdr_resume	P	0	-
 tests/functional/send_xdr_encoding/xdr_resume_bookmark_raw	P	1	-
-tests/functional/send_xdr_encoding/xdr_resume_bookmark_raw_with_write	P	1	-
+tests/functional/send_xdr_encoding/xdr_resume_bookmark_raw_with_write	S	1	failed with parallel runners
 tests/functional/send_xdr_encoding/xdr_resume_raw	P	0	-
 tests/functional/send_xdr_encoding/xdr_resume_redacted	P	0	-
 tests/functional/simd:Linux/simd_supported	S	0	tunable

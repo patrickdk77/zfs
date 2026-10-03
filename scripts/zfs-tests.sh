@@ -625,6 +625,24 @@ if [ "$CLEANUPALL" = "yes" ]; then
 	cleanup_all
 fi
 
+parallel_state() {
+	local dev t
+	[ "$UNAME" = "Linux" ] || return 0
+	echo "zts-parallel: state $1"
+	for dev in /dev/loop[0-9]* /dev/zd[0-9]* /dev/vd* /dev/sd*; do
+		[ -b "$dev" ] || continue
+		sudo blkid -p -s TYPE -o value "$dev" 2>/dev/null |
+		    grep -q zfs_member || continue
+		sudo udevadm info -q property -n "$dev" 2>/dev/null |
+		    grep -q '^USEC_INITIALIZED=' && continue
+		echo "zts-parallel: uninitialized zfs device $dev"
+	done
+	sudo "${LOSETUP}" -a 2>/dev/null | sed 's/^/zts-parallel: /'
+	t=$SECONDS
+	sudo "$ZPOOL" import >/dev/null 2>&1
+	echo "zts-parallel: import scan took $((SECONDS - t))s"
+}
+
 run_parallel() {
 	local gen=${ZTS_PARALLEL:-${TEST_RUNNER%/*}/zts-parallel.py}
 	local d="$FILEDIR/zts-parallel.$$"
@@ -655,8 +673,8 @@ run_parallel() {
 	for ((i = 1; i <= n; i++)); do
 		[ -n "${lists[i - 1]}" ] || continue
 		mkdir -p "$d/run$i" && chmod 1777 "$d/run$i"
-		ZTS_INSTANCE="_p$i" "$0" "${args[@]}" -d "$d/run$i" \
-		    -r "${lists[i - 1]}" &
+		DISKS= ZTS_INSTANCE="_p$i" "$0" "${args[@]}" \
+		    -d "$d/run$i" -r "${lists[i - 1]}" &
 		pids+=("$!")
 	done
 	for pid in "${pids[@]}"; do
@@ -664,12 +682,14 @@ run_parallel() {
 		r=$?
 		[ "$r" -gt "$rv" ] && rv=$r
 	done
+	parallel_state "after parallel runners"
 
 	if [ -n "${lists[n]}" ]; then
 		"$0" "${args[@]}" -d "$FILEDIR" -r "${lists[n]}"
 		r=$?
 		[ "$r" -gt "$rv" ] && rv=$r
 	fi
+	parallel_state "after serial runner"
 	for f in /var/tmp/test_results_p*/current/log; do
 		if [ -f "$f" ] && [ -d "$cur" ]; then
 			cat "$f" >> "$cur/log"
