@@ -136,7 +136,12 @@ zpool scrub $TESTPOOL2 &
 # Post 180 seconds zpool/zfs commands gets start executing however few more seconds(10s)
 # it take to update the status.
 # hence sleeping for 200 seconds so that we get the correct status.
-sleep 200		# Give the scrub some time to run before we check if it fails
+typeset -i start=$SECONDS waited=0
+while ! check_all $TESTPOOL2 "SUSPENDED" && ((waited < 200)); do
+	sleep 2
+	waited=$((SECONDS - start))
+done
+log_note "$TESTPOOL2 suspended after ${waited}s"
 
 log_must check_all $TESTPOOL2 "SUSPENDED"
 
