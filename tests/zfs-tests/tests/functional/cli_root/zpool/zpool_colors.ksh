@@ -30,6 +30,7 @@ verify_runnable "both"
 function cleanup
 {
 	zinject -c all
+	[[ -n $DISK3 ]] && zpool clear $TESTPOOL $DISK3
 }
 
 log_onexit cleanup
