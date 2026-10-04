@@ -53,7 +53,8 @@ function cleanup
 	# check to see if there is any new fs created during the test
 	# if so destroy it.
 	#
-	for dset in $(zfs list -H | awk '$1 ~ /\// {print $1}'); do
+	for dset in $(zfs list -H -r $TESTPOOL |
+	    awk '$1 ~ /\// {print $1}'); do
 		found=false
 		i=0
 		while (( $i < ${#existed_fs[*]} )); do
@@ -98,7 +99,8 @@ set -A options "" "-s"
 datasetexists $TESTPOOL/$TESTVOL || \
 		log_must zfs create -V $VOLSIZE $TESTPOOL/$TESTVOL
 
-set -A existed_fs $(zfs list -H | awk '$1 ~ /\// {print $1}')
+set -A existed_fs $(zfs list -H -r $TESTPOOL |
+    awk '$1 ~ /\// {print $1}')
 
 log_mustnot zfs create -V $VOLSIZE $TESTPOOL/$TESTVOL
 log_mustnot zfs create -s -V $VOLSIZE $TESTPOOL/$TESTVOL
