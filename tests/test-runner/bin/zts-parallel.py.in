@@ -110,12 +110,20 @@ def main():
                 if c == 'P':
                     par.append((sec, path, name, t))
 
+    groups = {}
+    for sec, path, name, t in par:
+        g = groups.setdefault(name.split(':')[0], [0, []])
+        g[0] += sec
+        g[1].append((path, name, t))
+
     load = [(0, i) for i in range(runners)]
     owner = {}
-    for sec, path, name, t in sorted(par, reverse=True):
+    for total, key in sorted(((g[0], k) for k, g in groups.items()),
+                             reverse=True):
         s, i = heapq.heappop(load)
-        owner[(path, name, t)] = i
-        heapq.heappush(load, (s + sec, i))
+        for item in groups[key][1]:
+            owner[item] = i
+        heapq.heappush(load, (s + total, i))
 
     os.makedirs(a.outdir, exist_ok=True)
     lists = [[] for _ in range(runners + 1)]
