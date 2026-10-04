@@ -47,7 +47,7 @@ SMALLFILE="$TESTDIR/smallfile"
 ORIG_PATTERN=$(get_tunable INITIALIZE_VALUE)
 log_must set_tunable64 INITIALIZE_VALUE $(printf %llu 0x$PATTERN)
 
-log_must mkdir "$TESTDIR"
+log_must mkdir -p "$TESTDIR"
 log_must truncate -s $MINVDEVSIZE "$SMALLFILE"
 log_must zpool create $TESTPOOL "$SMALLFILE"
 log_must zpool initialize -w $TESTPOOL

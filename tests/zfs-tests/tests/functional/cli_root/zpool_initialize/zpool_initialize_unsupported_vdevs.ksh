@@ -44,7 +44,7 @@ function cleanup
 }
 log_onexit cleanup
 
-log_must mkdir $TESTDIR
+log_must mkdir -p $TESTDIR
 set -A FDISKS
 for n in {0..2}; do
         log_must mkfile $MINVDEVSIZE $TESTDIR/vdev$n

@@ -42,7 +42,7 @@ log_assert "'zpool initialize -z' writes zeroes and persists the choice"
 
 SMALLFILE="$TESTDIR/smallfile"
 
-log_must mkdir "$TESTDIR"
+log_must mkdir -p "$TESTDIR"
 # Fill the whole device with 0xff so free space starts out non-zero.
 log_must eval "tr '\0' '\377' < /dev/zero | head -c $MINVDEVSIZE > $SMALLFILE"
 
