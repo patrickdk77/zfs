@@ -59,18 +59,16 @@ zfs userspace -o objused -H $TESTPOOL | head -n 1 | grep -q "-" ||
 
 # Create a file in fs1 should trigger dataset upgrade
 log_must mkfile 1m $TESTDIR/fs1/tf
-log_must sleep 1 # upgrade done in the background so let's give it a sec
 
 # Make sure userobj accounting is working for fs1
-zfs userspace -o objused -H $TESTPOOL/fs1 | head -n 1 | grep -q "-" &&
+wait_userobj_enabled $TESTPOOL/fs1 ||
 	log_fail "userobj accounting should be enabled for $TESTPOOL/fs1"
 
 # Mount a dataset should trigger upgrade
 log_must zfs mount $TESTPOOL/fs2
-log_must sleep 1 # upgrade done in the background so let's give it a sec
 
 # Make sure userobj accounting is working for fs2
-zfs userspace -o objused -H $TESTPOOL/fs2 | head -n 1 | grep -q "-" &&
+wait_userobj_enabled $TESTPOOL/fs2 ||
 	log_fail "userobj accounting should be enabled for $TESTPOOL/fs2"
 
 # All in all, after having been through this, the dataset for testpool

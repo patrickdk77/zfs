@@ -30,3 +30,29 @@ function cleanup_upgrade
 	destroy_dataset "$TESTPOOL/fs3"
 	destroy_pool "$TESTPOOL"
 }
+
+function wait_projectquota_enabled
+{
+	typeset -i i=0
+
+	while ((i < 30)); do
+		zfs projectspace -o used $1 | grep -q "USED" &&
+		    return 0
+		sleep 1
+		((i += 1))
+	done
+	return 1
+}
+
+function wait_userobj_enabled
+{
+	typeset -i i=0
+
+	while ((i < 30)); do
+		zfs userspace -o objused -H $1 | head -n 1 |
+		    grep -q "-" || return 0
+		sleep 1
+		((i += 1))
+	done
+	return 1
+}

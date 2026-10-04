@@ -81,14 +81,12 @@ zfs projectspace -o used $TESTPOOL | grep -q "USED" &&
 
 # Mount dataset should trigger upgrade
 log_must zfs mount $TESTPOOL/fs1
-log_must sleep 3 # upgrade done in the background so let's wait for a while
-zfs projectspace -o used $TESTPOOL/fs1 | grep -q "USED" ||
+wait_projectquota_enabled $TESTPOOL/fs1 ||
 	log_fail "project quota should be enabled for $TESTPOOL/fs1"
 
 # Create file should trigger dataset upgrade
 log_must mkfile 1m $TESTDIR/fs2/dir/tf
-log_must sleep 3 # upgrade done in the background so let's wait for a while
-zfs projectspace -o used $TESTPOOL/fs2 | grep -q "USED" ||
+wait_projectquota_enabled $TESTPOOL/fs2 ||
 	log_fail "project quota should be enabled for $TESTPOOL/fs2"
 
 # "lsattr -p" should NOT trigger upgrade
@@ -98,8 +96,7 @@ zfs projectspace -o used $TESTPOOL/fs3 | grep -q "USED" &&
 
 # 'chattr -p' should trigger dataset upgrade
 log_must chattr -p 100 $TESTDIR/fs3/dir
-log_must sleep 5 # upgrade done in the background so let's wait for a while
-zfs projectspace -o used $TESTPOOL/fs3 | grep -q "USED" ||
+wait_projectquota_enabled $TESTPOOL/fs3 ||
 	log_fail "project quota should be enabled for $TESTPOOL/fs3"
 dirino=$(stat -c '%i' $TESTDIR/fs3/dir)
 log_must zdb -ddddd $TESTPOOL/fs3 $dirino
