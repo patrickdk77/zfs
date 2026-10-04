@@ -46,7 +46,7 @@ log_mustnot eval "zdb -dddd $TESTPOOL 1 | grep -q DDT-sha256"
 # create a file. this is four full blocks, so will produce four entries in the
 # dedup table
 log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128k count=4
-log_must zpool sync
+log_must zpool sync $TESTPOOL
 
 # feature should still be disabled
 log_must test $(get_pool_prop feature@fast_dedup $TESTPOOL) = "disabled"
@@ -66,7 +66,7 @@ log_must test $(get_pool_prop feature@fast_dedup $TESTPOOL) = "disabled"
 
 # remove the file
 log_must rm -f /$TESTPOOL/file1
-log_must zpool sync
+log_must zpool sync $TESTPOOL
 
 # feature should still be disabled
 log_must test $(get_pool_prop feature@fast_dedup $TESTPOOL) = "disabled"
@@ -79,7 +79,7 @@ log_must test $(zdb -dddd $TESTPOOL 1 | grep DDT-sha256-zap- | wc -l) -eq 0
 
 # create a new file
 log_must dd if=/dev/urandom of=/$TESTPOOL/file2 bs=128k count=4
-log_must zpool sync
+log_must zpool sync $TESTPOOL
 
 # feature should still be disabled
 log_must test $(get_pool_prop feature@fast_dedup $TESTPOOL) = "disabled"

@@ -46,7 +46,7 @@ log_mustnot eval "zdb -dddd $TESTPOOL 1 | grep -q DDT-sha256"
 # create a file. this is four full blocks, so will produce four entries in the
 # dedup table
 log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128k count=4
-log_must zpool sync
+log_must zpool sync $TESTPOOL
 
 # feature should still be disabled
 log_must test $(get_pool_prop feature@fast_dedup $TESTPOOL) = "disabled"
@@ -59,7 +59,7 @@ log_must test $(zdb -dddd $TESTPOOL 1 | grep DDT-sha256-zap- | wc -l) -eq 1
 
 # copy the file
 log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128k
-log_must zpool sync
+log_must zpool sync $TESTPOOL
 
 # now four entries in the duplicate table
 log_must eval "zdb -D $TESTPOOL | grep -q 'DDT-sha256-zap-duplicate:.*entries=4'"
@@ -70,7 +70,7 @@ log_must test $(zdb -dddd $TESTPOOL 1 | grep DDT-sha256-zap- | wc -l) -eq 2
 
 # remove the files
 log_must rm -f /$TESTPOOL/file*
-log_must zpool sync
+log_must zpool sync $TESTPOOL
 
 # feature should still be disabled
 log_must test $(get_pool_prop feature@fast_dedup $TESTPOOL) = "disabled"

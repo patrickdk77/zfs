@@ -3161,6 +3161,14 @@ function sync_pool #pool <force>
 function sync_all_pools #<force>
 {
 	typeset force=${1:-false}
+	typeset pool
+
+	if [[ -n $ZTS_INSTANCE ]]; then
+		for pool in $(get_all_pools); do
+			sync_pool $pool $force
+		done
+		return 0
+	fi
 
 	if [[ $force == true ]]; then
 		log_must zpool sync -f
