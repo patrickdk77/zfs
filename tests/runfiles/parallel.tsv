@@ -285,28 +285,28 @@ tests/functional/cli_root/zfs_create/zfs_create_dryrun	P	0	-
 tests/functional/cli_root/zfs_create/zfs_create_encrypted	P	2	-
 tests/functional/cli_root/zfs_create/zfs_create_nomount	P	0	-
 tests/functional/cli_root/zfs_create/zfs_create_verbose	P	0	-
-tests/functional/cli_root/zfs_destroy/zfs_clone_livelist_condense_and_disable	S	36	tunable
-tests/functional/cli_root/zfs_destroy/zfs_clone_livelist_condense_races	S	2	tunable
-tests/functional/cli_root/zfs_destroy/zfs_clone_livelist_dedup	S	10	tunable
-tests/functional/cli_root/zfs_destroy/zfs_destroy_001_pos	P	36	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_002_pos	P	0	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_003_pos	P	1	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_004_pos	P	0	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_005_neg	P	4	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_006_neg	P	0	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_007_neg	P	0	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_008_pos	P	1	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_009_pos	P	1	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_010_pos	P	1	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_011_pos	P	1	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_012_pos	P	1	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_013_neg	P	1	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_014_pos	P	0	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_015_pos	P	7	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_016_pos	P	8	-
-tests/functional/cli_root/zfs_destroy/zfs_destroy_clone_livelist	S	62	tunable
-tests/functional/cli_root/zfs_destroy/zfs_destroy_dev_removal	S	0	tunable
-tests/functional/cli_root/zfs_destroy/zfs_destroy_dev_removal_condense	S	0	tunable
+tests/functional/cli_root/zfs_destroy/zfs_clone_livelist_condense_and_disable	S	36	tunable,kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_clone_livelist_condense_races	S	2	tunable,kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_clone_livelist_dedup	S	10	tunable,kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_001_pos	S	36	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_002_pos	S	0	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_003_pos	S	1	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_004_pos	S	0	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_005_neg	S	4	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_006_neg	S	0	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_007_neg	S	0	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_008_pos	S	1	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_009_pos	S	1	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_010_pos	S	1	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_011_pos	S	1	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_012_pos	S	1	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_013_neg	S	1	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_014_pos	S	0	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_015_pos	S	7	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_016_pos	S	8	kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_clone_livelist	S	62	tunable,kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_dev_removal	S	0	tunable,kills processes by name
+tests/functional/cli_root/zfs_destroy/zfs_destroy_dev_removal_condense	S	0	tunable,kills processes by name
 tests/functional/cli_root/zfs_diff/zfs_diff_changes	P	0	-
 tests/functional/cli_root/zfs_diff/zfs_diff_cliargs	P	2	-
 tests/functional/cli_root/zfs_diff/zfs_diff_encrypted	P	0	-
@@ -428,10 +428,10 @@ tests/functional/cli_root/zfs_rewrite/zfs_rewrite	P	6	-
 tests/functional/cli_root/zfs_rewrite/zfs_rewrite_physical	P	0	-
 tests/functional/cli_root/zfs_rewrite/zfs_rewrite_skip_clone	P	6	-
 tests/functional/cli_root/zfs_rewrite/zfs_rewrite_skip_snapshot	P	4	-
-tests/functional/cli_root/zfs_rollback/zfs_rollback_001_pos	S	57	failed with parallel runners
-tests/functional/cli_root/zfs_rollback/zfs_rollback_002_pos	P	3	-
-tests/functional/cli_root/zfs_rollback/zfs_rollback_003_neg	P	0	-
-tests/functional/cli_root/zfs_rollback/zfs_rollback_004_neg	P	1	-
+tests/functional/cli_root/zfs_rollback/zfs_rollback_001_pos	S	57	failed with parallel runners,kills processes by name
+tests/functional/cli_root/zfs_rollback/zfs_rollback_002_pos	S	3	kills processes by name
+tests/functional/cli_root/zfs_rollback/zfs_rollback_003_neg	S	0	kills processes by name
+tests/functional/cli_root/zfs_rollback/zfs_rollback_004_neg	S	1	kills processes by name
 tests/functional/cli_root/zfs_send/zfs_send-b	P	3	-
 tests/functional/cli_root/zfs_send/zfs_send_001_pos	P	0	-
 tests/functional/cli_root/zfs_send/zfs_send_002_pos	P	3	-
