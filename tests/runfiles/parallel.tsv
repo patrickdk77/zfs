@@ -132,28 +132,28 @@ tests/functional/casenorm/sensitive_formd_delete	P	0	-
 tests/functional/casenorm/sensitive_formd_lookup	P	0	-
 tests/functional/casenorm/sensitive_none_delete	P	0	-
 tests/functional/casenorm/sensitive_none_lookup	P	0	-
-tests/functional/channel_program/lua_core/tst.args_to_lua	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.divide_by_zero	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.encryption	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.exists	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.integer_illegal	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.integer_overflow	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.language_functions_neg	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.language_functions_pos	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.large_prog	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.libraries	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.memory_limit	S	0	tunable,group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.nested_neg	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.nested_pos	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.nvlist_to_lua	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.recursive_neg	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.recursive_pos	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.return_large	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.return_nvlist_neg	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.return_nvlist_pos	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.return_recursive_table	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.stack_gsub	S	0	group failed with parallel runners
-tests/functional/channel_program/lua_core/tst.timeout	S	0	failed with parallel runners,group failed with parallel runners
+tests/functional/channel_program/lua_core/tst.args_to_lua	P	0	-
+tests/functional/channel_program/lua_core/tst.divide_by_zero	P	0	-
+tests/functional/channel_program/lua_core/tst.encryption	P	0	-
+tests/functional/channel_program/lua_core/tst.exists	P	0	-
+tests/functional/channel_program/lua_core/tst.integer_illegal	P	0	-
+tests/functional/channel_program/lua_core/tst.integer_overflow	P	0	-
+tests/functional/channel_program/lua_core/tst.language_functions_neg	P	0	-
+tests/functional/channel_program/lua_core/tst.language_functions_pos	P	0	-
+tests/functional/channel_program/lua_core/tst.large_prog	P	0	-
+tests/functional/channel_program/lua_core/tst.libraries	P	0	-
+tests/functional/channel_program/lua_core/tst.memory_limit	S	0	tunable
+tests/functional/channel_program/lua_core/tst.nested_neg	P	0	-
+tests/functional/channel_program/lua_core/tst.nested_pos	P	0	-
+tests/functional/channel_program/lua_core/tst.nvlist_to_lua	P	0	-
+tests/functional/channel_program/lua_core/tst.recursive_neg	P	0	-
+tests/functional/channel_program/lua_core/tst.recursive_pos	P	0	-
+tests/functional/channel_program/lua_core/tst.return_large	P	0	-
+tests/functional/channel_program/lua_core/tst.return_nvlist_neg	P	0	-
+tests/functional/channel_program/lua_core/tst.return_nvlist_pos	P	0	-
+tests/functional/channel_program/lua_core/tst.return_recursive_table	P	0	-
+tests/functional/channel_program/lua_core/tst.stack_gsub	P	0	-
+tests/functional/channel_program/lua_core/tst.timeout	P	0	-
 tests/functional/channel_program/synctask_core/tst.bookmark.copy	S	0	group:literal testpool
 tests/functional/channel_program/synctask_core/tst.bookmark.create	S	0	group:literal testpool
 tests/functional/channel_program/synctask_core/tst.clone	S	0	group:literal testpool
@@ -192,12 +192,12 @@ tests/functional/channel_program/synctask_core/tst.snapshot_simple	S	0	group:lit
 tests/functional/channel_program/synctask_core/tst.terminate_by_signal	S	18	group:literal testpool
 tests/functional/chattr:Linux/chattr_001_pos	S	0	group:users,users
 tests/functional/chattr:Linux/chattr_002_neg	S	0	group:users,users
-tests/functional/checksum/filetest_001_pos	S	36	failed with parallel runners,group failed with parallel runners
-tests/functional/checksum/filetest_002_pos	S	17	failed with parallel runners,group failed with parallel runners
-tests/functional/checksum/run_blake3_test	S	6	group failed with parallel runners
-tests/functional/checksum/run_edonr_test	S	0	group failed with parallel runners
-tests/functional/checksum/run_sha2_test	S	29	group failed with parallel runners
-tests/functional/checksum/run_skein_test	S	6	group failed with parallel runners
+tests/functional/checksum/filetest_001_pos	S	36	failed with parallel runners
+tests/functional/checksum/filetest_002_pos	S	17	failed with parallel runners
+tests/functional/checksum/run_blake3_test	P	6	-
+tests/functional/checksum/run_edonr_test	P	0	-
+tests/functional/checksum/run_sha2_test	P	29	-
+tests/functional/checksum/run_skein_test	P	6	-
 tests/functional/clean_mirror/clean_mirror_001_pos	P	1	-
 tests/functional/clean_mirror/clean_mirror_002_pos	P	1	-
 tests/functional/clean_mirror/clean_mirror_003_pos	P	2	-
@@ -231,7 +231,7 @@ tests/functional/cli_root/zdb/zdb_recover_2	P	1	-
 tests/functional/cli_root/zdb/zdb_tunables	S	0	zfs_flags
 tests/functional/cli_root/zfs/zfs_001_neg	P	0	-
 tests/functional/cli_root/zfs/zfs_002_pos	P	1	-
-tests/functional/cli_root/zfs:Linux/zfs_003_neg	P	30	-
+tests/functional/cli_root/zfs:Linux/zfs_003_neg	S	30	moves /dev/zfs
 tests/functional/cli_root/zfs_bookmark/zfs_bookmark_cliargs	P	2	-
 tests/functional/cli_root/zfs_bookmark/zfs_bookmark_recursive	P	0	-
 tests/functional/cli_root/zfs_change-key/zfs_change-key	P	0	-
