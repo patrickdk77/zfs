@@ -142,26 +142,41 @@ actual=$(get_object_list $TESTPOOL/$TESTFS $objects | awk '{printf("%s ", $1)}' 
 log_must test "${actual% }" == "$expected"
 
 # Get all objects in the meta-objset to test m (spacemap) and z (zap) flags
-all_mos_objects=$(get_object_list $TESTPOOL 0:-1)
+function check_mos_ranges
+{
+	typeset all_mos_objects expected actual
 
-# Range 0:-1:m must output all space map objects
-expected=$(grep "SPA space map" <<< $all_mos_objects)
-actual=$(get_object_list $TESTPOOL 0:-1:m)
-log_must test "\n$actual\n" == "\n$expected\n"
+	all_mos_objects=$(get_object_list $TESTPOOL 0:-1)
 
-# Range 0:-1:z must output all zap objects
-expected=$(grep "zap" <<< $all_mos_objects)
-actual=$(get_object_list $TESTPOOL 0:-1:z)
-log_must test "\n$actual\n" == "\n$expected\n"
+	# Range 0:-1:m must output all space map objects
+	expected=$(grep "SPA space map" <<< $all_mos_objects)
+	actual=$(get_object_list $TESTPOOL 0:-1:m)
+	test "\n$actual\n" == "\n$expected\n" || return 1
 
-# Range 0:-1:A-m-z must output all non-space maps and non-zaps
-expected=$(grep -v -e "zap" -e "SPA space map" <<< $all_mos_objects)
-actual=$(get_object_list $TESTPOOL 0:-1:A-m-z)
-log_must test "\n$actual\n" == "\n$expected\n"
+	# Range 0:-1:z must output all zap objects
+	expected=$(grep "zap" <<< $all_mos_objects)
+	actual=$(get_object_list $TESTPOOL 0:-1:z)
+	test "\n$actual\n" == "\n$expected\n" || return 1
 
-# Range 0:-1:mz must output all space maps and zaps
-expected=$(grep -e "SPA space map" -e "zap" <<< $all_mos_objects)
-actual=$(get_object_list $TESTPOOL 0:-1:mz)
-log_must test "\n$actual\n" == "\n$expected\n"
+	# Range 0:-1:A-m-z must output all non-space maps and non-zaps
+	expected=$(grep -v -e "zap" -e "SPA space map" \
+	    <<< $all_mos_objects)
+	actual=$(get_object_list $TESTPOOL 0:-1:A-m-z)
+	test "\n$actual\n" == "\n$expected\n" || return 1
+
+	# Range 0:-1:mz must output all space maps and zaps
+	expected=$(grep -e "SPA space map" -e "zap" \
+	    <<< $all_mos_objects)
+	actual=$(get_object_list $TESTPOOL 0:-1:mz)
+	test "\n$actual\n" == "\n$expected\n"
+}
+
+typeset -i tries=0
+until check_mos_ranges; do
+	(( ++tries < 5 )) ||
+	    log_fail "MOS object range listings differ"
+	log_note "MOS objects changed between zdb runs, retrying"
+	sync_pool $TESTPOOL
+done
 
 log_pass "zdb -dd object range arguments work correctly"
