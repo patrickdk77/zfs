@@ -570,7 +570,7 @@ tests/functional/cli_root/zpool_attach/zpool_attach_001_neg	P	0	-
 tests/functional/cli_root/zpool_clear/zpool_clear_001_pos	P	12	-
 tests/functional/cli_root/zpool_clear/zpool_clear_002_neg	P	0	-
 tests/functional/cli_root/zpool_clear/zpool_clear_003_neg	S	1	large data
-tests/functional/cli_root/zpool_clear/zpool_clear_readonly	P	1	-
+tests/functional/cli_root/zpool_clear/zpool_clear_readonly	S	1	failed with parallel runners
 tests/functional/cli_root/zpool_condense/zpool_condense_basic	P	10	-
 tests/functional/cli_root/zpool_condense/zpool_condense_neg	P	0	-
 tests/functional/cli_root/zpool_create/create-o_ashift	S	23	group:literal testpool,literal testpool
