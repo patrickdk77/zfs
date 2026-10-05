@@ -809,7 +809,7 @@ run_parallel() {
 	for ((i = 1; i <= n; i++)); do
 		[ -n "${lists[i - 1]}" ] || continue
 		mkdir -p "$d/run$i" && chmod 1777 "$d/run$i"
-		DISKS= ZTS_INSTANCE="_p$i" "$0" "${args[@]}" -j 1 \
+		DISKS='' ZTS_INSTANCE="_p$i" "$0" "${args[@]}" -j 1 \
 		    -d "$d/run$i" -r "${lists[i - 1]}" &
 		pids+=("$!")
 	done
