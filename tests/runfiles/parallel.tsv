@@ -256,7 +256,7 @@ tests/functional/cli_root/zfs_clone/zfs_clone_009_neg	P	0	-
 tests/functional/cli_root/zfs_clone/zfs_clone_010_pos	P	8	-
 tests/functional/cli_root/zfs_clone/zfs_clone_011_pos	P	1	-
 tests/functional/cli_root/zfs_clone/zfs_clone_deeply_nested	P	98	-
-tests/functional/cli_root/zfs_clone/zfs_clone_encrypted	P	1	-
+tests/functional/cli_root/zfs_clone/zfs_clone_encrypted	S	1	acts on every pool
 tests/functional/cli_root/zfs_clone/zfs_clone_nomount	P	0	-
 tests/functional/cli_root/zfs_clone/zfs_clone_rm_nested	P	41	-
 tests/functional/cli_root/zfs_copies/zfs_copies_001_pos	S	18	group:tunable,tunable
@@ -331,7 +331,7 @@ tests/functional/cli_root/zfs_inherit/zfs_inherit_mountpoint	P	0	-
 tests/functional/cli_root/zfs_jail:FreeBSD/zfs_jail_001_pos	P	0	-
 tests/functional/cli_root/zfs_list/zfs_list_009_pos	P	0	-
 tests/functional/cli_root/zfs_load-key/zfs_load-key	P	1	-
-tests/functional/cli_root/zfs_load-key/zfs_load-key_all	P	2	-
+tests/functional/cli_root/zfs_load-key/zfs_load-key_all	S	2	acts on every pool
 tests/functional/cli_root/zfs_load-key/zfs_load-key_file	P	0	-
 tests/functional/cli_root/zfs_load-key/zfs_load-key_https	P	1	-
 tests/functional/cli_root/zfs_load-key/zfs_load-key_location	P	0	-
@@ -506,7 +506,7 @@ tests/functional/cli_root/zfs_sysfs:Linux/zfs_sysfs_live	P	0	-
 tests/functional/cli_root/zfs_sysfs:Linux/zpool_get_unsupported	P	0	-
 tests/functional/cli_root/zfs_sysfs:Linux/zpool_set_unsupported	P	0	-
 tests/functional/cli_root/zfs_unload-key/zfs_unload-key	P	0	-
-tests/functional/cli_root/zfs_unload-key/zfs_unload-key_all	P	1	-
+tests/functional/cli_root/zfs_unload-key/zfs_unload-key_all	S	1	acts on every pool
 tests/functional/cli_root/zfs_unload-key/zfs_unload-key_recursive	P	0	-
 tests/functional/cli_root/zfs_unmount/zfs_unmount_001_pos	P	0	-
 tests/functional/cli_root/zfs_unmount/zfs_unmount_002_pos	P	0	-
@@ -528,7 +528,7 @@ tests/functional/cli_root/zfs_unshare/zfs_unshare_005_neg	S	0	shares
 tests/functional/cli_root/zfs_unshare/zfs_unshare_006_pos	S	0	literal testpool,shares,all-pools command
 tests/functional/cli_root/zfs_unshare/zfs_unshare_007_pos	S	0	shares
 tests/functional/cli_root/zfs_unshare:Linux/zfs_unshare_008_pos	S	0	shares
-tests/functional/cli_root/zfs_upgrade/zfs_upgrade_001_pos	P	1	-
+tests/functional/cli_root/zfs_upgrade/zfs_upgrade_001_pos	S	1	acts on every pool
 tests/functional/cli_root/zfs_upgrade/zfs_upgrade_002_pos	P	0	-
 tests/functional/cli_root/zfs_upgrade/zfs_upgrade_003_pos	P	10	-
 tests/functional/cli_root/zfs_upgrade/zfs_upgrade_004_pos	P	13	-
@@ -828,7 +828,7 @@ tests/functional/cli_root/zpool_trim/zpool_trim_verify_trimmed	S	2	tunable
 tests/functional/cli_root/zpool_upgrade/zpool_upgrade_001_pos	P	0	-
 tests/functional/cli_root/zpool_upgrade/zpool_upgrade_002_pos	P	73	-
 tests/functional/cli_root/zpool_upgrade/zpool_upgrade_003_pos	P	2	-
-tests/functional/cli_root/zpool_upgrade/zpool_upgrade_004_pos	P	89	-
+tests/functional/cli_root/zpool_upgrade/zpool_upgrade_004_pos	S	89	acts on every pool
 tests/functional/cli_root/zpool_upgrade/zpool_upgrade_005_neg	P	0	-
 tests/functional/cli_root/zpool_upgrade/zpool_upgrade_006_neg	P	0	-
 tests/functional/cli_root/zpool_upgrade/zpool_upgrade_007_pos	S	64	failed with parallel runners
