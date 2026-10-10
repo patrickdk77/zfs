@@ -172,10 +172,20 @@ dmu_write_direct(zio_t *pio, dmu_buf_impl_t *db, abd_t *data, dmu_tx_t *tx)
 
 	/*
 	 * Disable nopwrite if the current block pointer could change
-	 * before this TXG syncs.
+	 * before this TXG syncs.  There are two ways it could change:
+	 * by being dirty again, or by being freed (for example by a
+	 * truncate that has not synced yet).  Keeping the old bp in
+	 * either case would leave it pointing at a block that the
+	 * pending change frees.  This mirrors dmu_sync().
 	 */
-	if (list_next(&db->db_dirty_records, dr_head) != NULL)
+	if (list_next(&db->db_dirty_records, dr_head) != NULL) {
 		zp.zp_nopwrite = B_FALSE;
+	} else {
+		DB_DNODE_ENTER(db);
+		if (dnode_block_freed(DB_DNODE(db), db->db_blkid))
+			zp.zp_nopwrite = B_FALSE;
+		DB_DNODE_EXIT(db);
+	}
 
 	ASSERT0(dr_head->dt.dl.dr_has_raw_params);
 	ASSERT3S(dr_head->dt.dl.dr_override_state, ==, DR_NOT_OVERRIDDEN);
@@ -284,26 +294,59 @@ dmu_read_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 		}
 
 		/*
-		 * There is no need to read if this is a hole or the data is
-		 * cached. This will not be considered a direct read for IO
-		 * accounting in the same way that an ARC hit is not counted.
+		 * Decide how to satisfy this dbuf without doing any
+		 * work the chosen path does not need.  A DB_CACHED
+		 * dbuf already reflects pending writes and frees in
+		 * its data, so it is always copied (never zeroed),
+		 * like the buffered path returning db_buf for a
+		 * cached dbuf.  Otherwise a NULL or hole bp reads as
+		 * a hole, and so does a valid bp whose block has a
+		 * pending free (e.g. a truncate not yet synced),
+		 * else this read returns stale data from the old
+		 * block.  dnode_block_freed() is consulted only when
+		 * the bp is not already a hole, exactly as
+		 * dbuf_read_hole() does.  A valid, non-freed bp is
+		 * read from disk below and computes no copy offsets.
+		 * For a block clone or Direct I/O override, only
+		 * frees in TXGs after the override count.
 		 */
-		if (bp == NULL || BP_IS_HOLE(bp) || db->db_state == DB_CACHED) {
+		boolean_t cached = (db->db_state == DB_CACHED);
+		boolean_t is_hole = !cached &&
+		    (bp == NULL || BP_IS_HOLE(bp));
+
+		if (!cached && !is_hole) {
+			dbuf_dirty_record_t *dr =
+			    list_head(&db->db_dirty_records);
+			boolean_t ov = dr != NULL &&
+			    (dr->dt.dl.dr_brtwrite ||
+			    dr->dt.dl.dr_diowrite);
+			if (ov)
+				is_hole = dnode_block_freed_after(dn,
+				    db->db_blkid, dr->dr_txg);
+			else
+				is_hole = dnode_block_freed(dn,
+				    db->db_blkid);
+		}
+
+		if (cached || is_hole) {
 			size_t aoff = offset < db->db.db_offset ?
 			    db->db.db_offset - offset : 0;
 			size_t boff = offset > db->db.db_offset ?
 			    offset - db->db.db_offset : 0;
-			size_t len = MIN(size - aoff, db->db.db_size - boff);
+			size_t len = MIN(size - aoff,
+			    db->db.db_size - boff);
 
-			if (db->db_state == DB_CACHED) {
+			if (cached) {
 				/*
-				 * We need to untransformed the ARC buf data
+				 * Untransform the ARC buf data
 				 * before we copy it over.
 				 */
-				err = dmu_buf_untransform_direct(db, spa);
+				err = dmu_buf_untransform_direct(db,
+				    spa);
 				ASSERT0(err);
 				abd_copy_from_buf_off(data,
-				    (char *)db->db.db_data + boff, aoff, len);
+				    (char *)db->db.db_data + boff,
+				    aoff, len);
 			} else {
 				abd_zero_off(data, aoff, len);
 			}
