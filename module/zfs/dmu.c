@@ -1519,10 +1519,17 @@ dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
 	/* Allow Direct I/O when requested and properly aligned */
 	if ((flags & DMU_DIRECTIO) && zfs_dio_page_aligned((void *)buf) &&
 	    zfs_dio_aligned(offset, size, dn->dn_datablksz)) {
+		boolean_t verify_err = B_FALSE;
 		abd_t *data = abd_get_from_buf((void *)buf, size);
-		error = dmu_write_abd(dn, offset, size, data, flags, tx);
+		error = dmu_write_abd(dn, offset, size, data, flags,
+		    tx, &verify_err);
 		abd_free(data);
-		return (error);
+		/*
+		 * A verify failure means the buffer changed in
+		 * flight. Rewrite it through the ARC.
+		 */
+		if (error == 0 || !verify_err)
+			return (error);
 	}
 	flags &= ~DMU_DIRECTIO;
 
@@ -1672,6 +1679,7 @@ dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx,
 	int err = 0;
 	uint64_t write_size;
 	dmu_flags_t oflags = flags;
+	boolean_t verify_err = B_FALSE;
 
 top:
 	write_size = size;
@@ -1684,18 +1692,26 @@ top:
 	    (write_size >= dn->dn_datablksz)) {
 		if (zfs_dio_aligned(zfs_uio_offset(uio), write_size,
 		    dn->dn_datablksz)) {
-			return (dmu_write_uio_direct(dn, uio, size, flags, tx));
+			err = dmu_write_uio_direct(dn, uio, size,
+			    flags, tx, &verify_err);
+			/*
+			 * A verify failure means the buffer changed
+			 * in flight. Rewrite this range through the
+			 * ARC.
+			 */
+			if (err == 0 || !verify_err)
+				return (err);
 		} else if (write_size > dn->dn_datablksz &&
 		    zfs_dio_offset_aligned(zfs_uio_offset(uio),
 		    dn->dn_datablksz)) {
 			write_size =
 			    dn->dn_datablksz * (write_size / dn->dn_datablksz);
 			err = dmu_write_uio_direct(dn, uio, write_size, flags,
-			    tx);
+			    tx, &verify_err);
 			if (err == 0) {
 				size -= write_size;
 				goto top;
-			} else {
+			} else if (!verify_err) {
 				return (err);
 			}
 		} else {

@@ -202,13 +202,25 @@ dmu_write_direct(zio_t *pio, dmu_buf_impl_t *db, abd_t *data, dmu_tx_t *tx)
 	return (0);
 }
 
+static void
+dmu_write_abd_done(zio_t *zio)
+{
+	boolean_t *verify_err = zio->io_private;
+
+	if (zio->io_post & ZIO_POST_DIO_CHKSUM_ERR)
+		*verify_err = B_TRUE;
+}
+
 int
 dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size,
-    abd_t *data, dmu_flags_t flags, dmu_tx_t *tx)
+    abd_t *data, dmu_flags_t flags, dmu_tx_t *tx,
+    boolean_t *verify_err)
 {
 	dmu_buf_t **dbp;
 	spa_t *spa = dn->dn_objset->os_spa;
 	int numbufs, err;
+
+	*verify_err = B_FALSE;
 
 	ASSERT(flags & DMU_DIRECTIO);
 
@@ -217,7 +229,8 @@ dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 	if (err)
 		return (err);
 
-	zio_t *pio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
+	zio_t *pio = zio_root(spa, dmu_write_abd_done, verify_err,
+	    ZIO_FLAG_CANFAIL);
 
 	for (int i = 0; i < numbufs && err == 0; i++) {
 		dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbp[i];
@@ -370,7 +383,7 @@ dmu_read_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
 
 int
 dmu_write_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
-    dmu_flags_t flags, dmu_tx_t *tx)
+    dmu_flags_t flags, dmu_tx_t *tx, boolean_t *verify_err)
 {
 	offset_t offset = zfs_uio_offset(uio);
 	offset_t page_index = (offset - zfs_uio_soffset(uio)) >> PAGESHIFT;
@@ -381,7 +394,8 @@ dmu_write_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
 
 	abd_t *data = abd_alloc_from_pages(&uio->uio_dio.pages[page_index],
 	    offset & (PAGESIZE - 1), size);
-	err = dmu_write_abd(dn, offset, size, data, flags, tx);
+	err = dmu_write_abd(dn, offset, size, data, flags, tx,
+	    verify_err);
 	abd_free(data);
 
 	if (err == 0)
