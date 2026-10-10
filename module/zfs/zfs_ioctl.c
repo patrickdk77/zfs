@@ -6424,6 +6424,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 	boolean_t compressok = (zc->zc_flags & 0x4);
 	boolean_t rawok = (zc->zc_flags & 0x8);
 	boolean_t savedok = (zc->zc_flags & 0x10);
+	boolean_t clonesok = (zc->zc_flags & 0x20);
 
 	if (zc->zc_obj != 0) {
 		dsl_pool_t *dp;
@@ -6489,7 +6490,8 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		off = zfs_file_off(dba.dba_fp);
 		error = dmu_send_obj(zc->zc_name, zc->zc_sendobj,
 		    zc->zc_fromobj, embedok, large_block_ok, compressok,
-		    rawok, savedok, zc->zc_cookie, &off, &out);
+		    rawok, savedok, clonesok, zc->zc_cookie, &off,
+		    &out);
 
 		dump_bytes_fini(&dba);
 	}
@@ -7414,6 +7416,8 @@ zfs_ioc_space_snaps(const char *lastsnap, nvlist_t *innvl, nvlist_t *outnvl)
  *         presence indicates raw encrypted records should be used.
  *     (optional) "savedok" -> (value ignored)
  *         presence indicates we should send a partially received snapshot
+ *     (optional) "clonesok" -> (value ignored)
+ *         presence indicates DRR_CLONE records are permitted
  *     (optional) "resume_object" and "resume_offset" -> (uint64)
  *         if present, resume send stream from specified object and offset.
  *     (optional) "redactbook" -> (string)
@@ -7431,6 +7435,7 @@ static const zfs_ioc_key_t zfs_keys_send_new[] = {
 	{"compressok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"rawok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"savedok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
+	{"clonesok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"resume_object",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
 	{"resume_offset",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
 	{"redactbook",		DATA_TYPE_STRING,	ZK_OPTIONAL},
@@ -7449,6 +7454,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	boolean_t compressok;
 	boolean_t rawok;
 	boolean_t savedok;
+	boolean_t clonesok;
 	uint64_t resumeobj = 0;
 	uint64_t resumeoff = 0;
 	const char *redactbook = NULL;
@@ -7462,6 +7468,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	compressok = nvlist_exists(innvl, "compressok");
 	rawok = nvlist_exists(innvl, "rawok");
 	savedok = nvlist_exists(innvl, "savedok");
+	clonesok = nvlist_exists(innvl, "clonesok");
 
 	(void) nvlist_lookup_uint64(innvl, "resume_object", &resumeobj);
 	(void) nvlist_lookup_uint64(innvl, "resume_offset", &resumeoff);
@@ -7476,8 +7483,8 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	off = zfs_file_off(dba.dba_fp);
 	error = dmu_send(snapname, fromname, embedok, largeblockok,
-	    compressok, rawok, savedok, resumeobj, resumeoff,
-	    redactbook, fd, &off, &out);
+	    compressok, rawok, savedok, clonesok, resumeobj,
+	    resumeoff, redactbook, fd, &off, &out);
 
 	dump_bytes_fini(&dba);
 
@@ -7526,6 +7533,7 @@ static const zfs_ioc_key_t zfs_keys_send_space[] = {
 	{"embedok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"compressok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"rawok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
+	{"clonesok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"fd",			DATA_TYPE_INT32,	ZK_OPTIONAL},
 	{"redactbook",		DATA_TYPE_STRING,	ZK_OPTIONAL},
 	{"resume_object",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
@@ -7571,6 +7579,7 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	compressok = nvlist_exists(innvl, "compressok");
 	rawok = nvlist_exists(innvl, "rawok");
 	savedok = nvlist_exists(innvl, "savedok");
+	boolean_t clonesok = nvlist_exists(innvl, "clonesok");
 	boolean_t from = (nvlist_lookup_string(innvl, "from", &fromname) == 0);
 	boolean_t altbook = (nvlist_lookup_string(innvl, "redactbook",
 	    &redactlist_book) == 0);
@@ -7579,7 +7588,7 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	(void) nvlist_lookup_uint64(innvl, "resume_offset", &resumeoff);
 	(void) nvlist_lookup_uint64(innvl, "bytes", &resume_bytes);
 
-	if (altbook) {
+	if (altbook || clonesok) {
 		full_estimate = B_TRUE;
 	} else if (from) {
 		if (strchr(fromname, '#')) {
@@ -7645,8 +7654,8 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 		dsl_dataset_rele(tosnap, FTAG);
 		dsl_pool_rele(dp, FTAG);
 		error = dmu_send(snapname, fromname, embedok, largeblockok,
-		    compressok, rawok, savedok, resumeobj, resumeoff,
-		    redactlist_book, fd, &off, &out);
+		    compressok, rawok, savedok, clonesok, resumeobj,
+		    resumeoff, redactlist_book, fd, &off, &out);
 	} else {
 		error = dmu_send_estimate_fast(tosnap, fromsnap,
 		    (from && strchr(fromname, '#') != NULL ? &zbm : NULL),
