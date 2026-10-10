@@ -4478,6 +4478,15 @@ piggyback:
 	 * property adjusted to match the number of DVAs we need to grow
 	 * the DDT entry by to satisfy the request.
 	 */
+	if (zio->io_bp_override) {
+		if (dde_io != NULL)
+			mutex_exit(&dde_io->dde_io_lock);
+		ddt_exit(ddt);
+		*bp = *zio->io_bp_override;
+		zp->zp_dedup = B_FALSE;
+		return (zio);
+	}
+
 	zio_prop_t czp;
 	if (have_dvas > 0 || parent_dvas > 0) {
 		czp = *zp;
