@@ -751,7 +751,9 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 				    "num_entries in unlinked set: %llu",
 				    zs.zs_num_entries);
 			}
-			zfs_unlinked_drain(zfsvfs);
+			if (!dsl_dataset_unchanged_since_prev(
+			    dmu_objset_ds(zfsvfs->z_os)))
+				zfs_unlinked_drain(zfsvfs);
 			dsl_dir_t *dd = zfsvfs->z_os->os_dsl_dataset->ds_dir;
 			dd->dd_activity_cancelled = B_FALSE;
 		}
@@ -1907,7 +1909,8 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 		 * of dnodes. We need to restart this freeing so
 		 * that we don't "leak" the space.
 		 */
-		zfs_unlinked_drain(zfsvfs);
+		if (!dsl_dataset_unchanged_since_prev(ds))
+			zfs_unlinked_drain(zfsvfs);
 	}
 
 	/*

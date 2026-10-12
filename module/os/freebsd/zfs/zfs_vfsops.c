@@ -1151,7 +1151,9 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 				    (u_longlong_t)zs.zs_num_entries);
 			}
 
-			zfs_unlinked_drain(zfsvfs);
+			if (!dsl_dataset_unchanged_since_prev(
+			    dmu_objset_ds(zfsvfs->z_os)))
+				zfs_unlinked_drain(zfsvfs);
 			dd = zfsvfs->z_os->os_dsl_dataset->ds_dir;
 			dd->dd_activity_cancelled = B_FALSE;
 		}
