@@ -798,6 +798,44 @@ dmu_objset_own_impl(dsl_dataset_t *ds, dmu_objset_type_t type,
 	return (0);
 }
 
+static void
+dmu_objset_upgrade_start(objset_t *os)
+{
+	if (dmu_objset_userobjspace_upgradable(os) ||
+	    dmu_objset_projectquota_upgradable(os)) {
+		dmu_objset_id_quota_upgrade(os);
+	} else if (dmu_objset_userused_enabled(os)) {
+		dmu_objset_userspace_upgrade(os);
+	}
+}
+
+/*
+ * Start the user accounting upgrade that dmu_objset_own() put off,
+ * if it put one off.  With wait, return once the upgrade is done.
+ */
+void
+dmu_objset_start_deferred_upgrade(objset_t *os, boolean_t wait)
+{
+	if (!os->os_upgrade_deferred)
+		return;
+
+	mutex_enter(&os->os_upgrade_lock);
+	boolean_t deferred = os->os_upgrade_deferred;
+	os->os_upgrade_deferred = B_FALSE;
+	mutex_exit(&os->os_upgrade_lock);
+	if (!deferred)
+		return;
+
+	dsl_pool_t *dp = dmu_objset_pool(os);
+	dsl_pool_config_enter(dp, FTAG);
+	dmu_objset_upgrade_start(os);
+	dsl_pool_config_exit(dp, FTAG);
+	if (wait) {
+		taskq_wait_id(os->os_spa->spa_upgrade_taskq,
+		    os->os_upgrade_id);
+	}
+}
+
 /*
  * dsl_pool must not be held when this is called.
  * Upon successful return, there will be a longhold on the dataset,
@@ -832,17 +870,23 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 	 * User accounting requires the dataset to be decrypted and rw.
 	 * We also don't begin user accounting during claiming to help
 	 * speed up pool import times and to keep this txg reserved
-	 * completely for recovery work.
+	 * completely for recovery work.  A dataset that lacks user
+	 * accounting and has not changed since its last snapshot, as
+	 * after a receive into an encrypted dataset, is left unchanged
+	 * until it is first written or its accounting is read.
 	 */
+	boolean_t defer = B_FALSE;
 	if (!readonly && !dp->dp_spa->spa_claiming &&
 	    (ds->ds_dir->dd_crypto_obj == 0 || decrypt)) {
-		if (dmu_objset_userobjspace_upgradable(*osp) ||
-		    dmu_objset_projectquota_upgradable(*osp)) {
-			dmu_objset_id_quota_upgrade(*osp);
-		} else if (dmu_objset_userused_enabled(*osp)) {
-			dmu_objset_userspace_upgrade(*osp);
-		}
+		defer = dmu_objset_userused_enabled(*osp) &&
+		    !dmu_objset_userspace_present(*osp) &&
+		    ds->ds_prev != NULL &&
+		    ds->ds_prev->ds_dir == ds->ds_dir &&
+		    !dsl_dataset_modified_since_snap(ds, ds->ds_prev);
+		if (!defer)
+			dmu_objset_upgrade_start(*osp);
 	}
+	(*osp)->os_upgrade_deferred = defer;
 
 	dsl_pool_rele(dp, FTAG);
 	return (0);

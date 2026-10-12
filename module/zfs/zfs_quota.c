@@ -187,6 +187,7 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	uint64_t obj;
 	int offset = 0;
 
+	dmu_objset_start_deferred_upgrade(zfsvfs->z_os, B_TRUE);
 	if (!dmu_objset_userspace_present(zfsvfs->z_os))
 		return (SET_ERROR(ENOTSUP));
 
@@ -259,6 +260,7 @@ zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 
 	*valp = 0;
 
+	dmu_objset_start_deferred_upgrade(zfsvfs->z_os, B_TRUE);
 	if (!dmu_objset_userspace_present(zfsvfs->z_os))
 		return (SET_ERROR(ENOTSUP));
 
