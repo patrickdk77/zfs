@@ -1758,6 +1758,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/gang_blocks/gang_blocks_dyn_header_neg.ksh \
 	functional/gang_blocks/gang_blocks_dyn_header_pos.ksh \
 	functional/gang_blocks/gang_blocks_dyn_multi.ksh \
+	functional/gang_blocks/gang_blocks_min_alloc.ksh \
 	functional/gang_blocks/setup.ksh \
 	functional/getfsuuid/cleanup.ksh \
 	functional/getfsuuid/getfsuuid_001_pos.ksh \
