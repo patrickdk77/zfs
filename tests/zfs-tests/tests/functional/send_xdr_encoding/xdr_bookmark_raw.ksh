@@ -71,8 +71,7 @@ log_must zfs snapshot $clonefs@s
 log_must zfs redact $sendfs@s0 redaction-bookmark $clonefs@s
 
 # Take @s1 with no intervening writes. See xdr_bookmark_raw_with_write.ksh
-# for a variant that includes a post-redact write; that variant exercises
-# a known kernel-side issue (#18491) and may flake.
+# for a variant that includes a post-redact write.
 log_must zfs snapshot $sendfs@s1
 
 # Establish a raw base on the receiver.

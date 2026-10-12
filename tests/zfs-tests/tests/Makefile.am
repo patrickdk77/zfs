@@ -2053,6 +2053,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/redacted_send/redacted_origin.ksh \
 	functional/redacted_send/redacted_panic.ksh \
 	functional/redacted_send/redacted_props.ksh \
+	functional/redacted_send/redacted_raw.ksh \
 	functional/redacted_send/redacted_resume.ksh \
 	functional/redacted_send/redacted_size.ksh \
 	functional/redacted_send/redacted_volume.ksh \
