@@ -924,8 +924,8 @@ tests = ['redacted_compressed', 'redacted_contents', 'redacted_deleted',
     'redacted_incrementals', 'redacted_largeblocks', 'redacted_max_blkid',
     'redacted_many_clones', 'redacted_meta_dnode',
     'redacted_mixed_recsize', 'redacted_mounts', 'redacted_negative',
-    'redacted_origin', 'redacted_panic', 'redacted_props', 'redacted_resume',
-    'redacted_size', 'redacted_volume']
+    'redacted_origin', 'redacted_panic', 'redacted_props', 'redacted_raw',
+    'redacted_resume', 'redacted_size', 'redacted_volume']
 tags = ['functional', 'redacted_send']
 
 [tests/functional/raidz]

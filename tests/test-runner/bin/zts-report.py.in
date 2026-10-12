@@ -234,8 +234,6 @@ maybe = {
     'pool_checkpoint/checkpoint_discard_busy': ['FAIL', 11946],
     'projectquota/setup': ['SKIP', exec_reason],
     'renameat2/setup': ['SKIP', renameat2_reason],
-    'send_xdr_encoding/xdr_bookmark_raw_with_write': ['FAIL', 18491],
-    'send_xdr_encoding/xdr_resume_bookmark_raw_with_write': ['FAIL', 18491],
     'trim/setup': ['SKIP', trim_reason],
     'uncached/uncached_dontcache': ['SKIP', dontcache_reason],
     'uncached/uncached_noreuse': ['SKIP', noreuse_reason],
