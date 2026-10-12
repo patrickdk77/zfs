@@ -2229,6 +2229,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send_embedded_large_block.ksh \
 	functional/rsend/send_embedded_spill_block.ksh \
 	functional/rsend/send_encrypted_incremental.ksh \
+	functional/rsend/send_encrypted_mount_unchanged.ksh \
 	functional/rsend/send_encrypted_files.ksh \
 	functional/rsend/send_encrypted_freeobjects.ksh \
 	functional/rsend/send_encrypted_hierarchy.ksh \
