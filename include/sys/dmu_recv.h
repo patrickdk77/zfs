@@ -50,6 +50,7 @@ typedef struct dmu_recv_cookie {
 	boolean_t drc_ivset_diverged;
 	nvlist_t *drc_keynvl;
 	uint64_t drc_fromsnapobj;
+	uint64_t drc_ivset_fromsnapobj; /* the stream's fromsnap */
 	uint64_t drc_ivset_guid;
 	void *drc_owner;
 	cred_t *drc_cred;

@@ -380,6 +380,58 @@ recv_check_large_blocks(dsl_dataset_t *ds, uint64_t featureflags)
 	return (0);
 }
 
+/*
+ * Return B_TRUE if no snapshot of ds taken after snap holds changes
+ * made after snap.
+ */
+static boolean_t
+recv_snaps_unchanged_since(dsl_pool_t *dp, dsl_dataset_t *ds,
+    dsl_dataset_t *snap)
+{
+	uint64_t obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
+
+	while (obj != snap->ds_object) {
+		dsl_dataset_t *s;
+		boolean_t modified;
+
+		if (obj == 0 ||
+		    dsl_dataset_hold_obj(dp, obj, FTAG, &s) != 0)
+			return (B_FALSE);
+		modified = dsl_dataset_modified_since_snap(s, snap);
+		obj = dsl_dataset_phys(s)->ds_prev_snap_obj;
+		dsl_dataset_rele(s, FTAG);
+		if (modified)
+			return (B_FALSE);
+	}
+	return (B_TRUE);
+}
+
+/*
+ * Starting at snapshot obj and going back, return the snapshot whose
+ * guid is guid, or obj if there is none.
+ */
+static uint64_t
+recv_find_snap_by_guid(dsl_pool_t *dp, uint64_t obj, uint64_t guid)
+{
+	uint64_t cur = obj;
+
+	while (cur != 0) {
+		dsl_dataset_t *s;
+		uint64_t next;
+
+		if (dsl_dataset_hold_obj(dp, cur, FTAG, &s) != 0)
+			break;
+		if (dsl_dataset_phys(s)->ds_guid == guid) {
+			dsl_dataset_rele(s, FTAG);
+			return (cur);
+		}
+		next = dsl_dataset_phys(s)->ds_prev_snap_obj;
+		dsl_dataset_rele(s, FTAG);
+		cur = next;
+	}
+	return (obj);
+}
+
 static int
 recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
     uint64_t fromguid, uint64_t featureflags)
@@ -521,22 +573,21 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 		} else {
 			/*
 			 * If we are not forcing, there must be no
-			 * changes since fromsnap. Raw sends have an
-			 * additional constraint that requires that
-			 * no "noop" snapshots exist between fromsnap
-			 * and tosnap for the IVset checking code to
-			 * work properly.
+			 * changes since fromsnap. A raw receive also
+			 * needs every snapshot after fromsnap to hold
+			 * no changes, since the stream's ivset guid
+			 * only describes fromsnap.
 			 */
 			if (dsl_dataset_modified_since_snap(ds, snap) ||
-			    (raw &&
-			    dsl_dataset_phys(ds)->ds_prev_snap_obj !=
-			    snap->ds_object)) {
+			    (raw && !recv_snaps_unchanged_since(dp, ds,
+			    snap))) {
 				dsl_dataset_rele(snap, FTAG);
 				return (SET_ERROR(ETXTBSY));
 			}
 			drba->drba_cookie->drc_fromsnapobj =
 			    ds->ds_prev->ds_object;
 		}
+		drba->drba_cookie->drc_ivset_fromsnapobj = obj;
 
 		if (dsl_dataset_feature_is_active(snap,
 		    SPA_FEATURE_REDACTED_DATASETS) && !redact_check(drba,
@@ -1217,6 +1268,8 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 
 	if (ds->ds_prev != NULL && drrb->drr_fromguid != 0) {
 		drc->drc_fromsnapobj = ds->ds_prev->ds_object;
+		drc->drc_ivset_fromsnapobj = recv_find_snap_by_guid(dp,
+		    drc->drc_fromsnapobj, drrb->drr_fromguid);
 
 		/*
 		 * As in recv_begin_check_existing_impl(): if this non-raw
@@ -4917,7 +4970,8 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 			 * stash the keynvl away until then.
 			 */
 			err = dsl_crypto_recv_raw(spa_name(drc->drc_os->os_spa),
-			    drc->drc_ds->ds_object, drc->drc_fromsnapobj,
+			    drc->drc_ds->ds_object,
+			    drc->drc_ivset_fromsnapobj,
 			    drc->drc_drrb->drr_type, keynvl, drc->drc_newfs);
 			if (err != 0)
 				goto out;
