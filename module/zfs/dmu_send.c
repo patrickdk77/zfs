@@ -1800,6 +1800,9 @@ send_reader_thread(void *arg)
 	objset_t *os = smta->os;
 	fstrans_cookie_t cookie = spl_fstrans_mark();
 	struct send_range *range = bqueue_dequeue(inq);
+	dmu_flags_t rflags =
+	    (srta->featureflags & DMU_BACKUP_FEATURE_RAW) ?
+	    DMU_READ_NO_DECRYPT : 0;
 	int err = 0;
 
 	/*
@@ -1929,8 +1932,8 @@ send_reader_thread(void *arg)
 				}
 				if (blkid >= file_max)
 					break;
-				err = dbuf_dnode_findbp(dn, 0, blkid, &bp,
-				    NULL, NULL);
+				err = dbuf_dnode_findbp(dn, 0, blkid,
+				    rflags, &bp, NULL, NULL);
 				if (err != 0)
 					break;
 				ASSERT(!BP_IS_HOLE(&bp));

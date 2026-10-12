@@ -1900,7 +1900,8 @@ dmu_object_cached_size(objset_t *os, uint64_t object,
 		 * continue. Ignoring the error from dbuf_hold_impl
 		 * or from dbuf_read is then a reasonable choice.
 		 */
-		err = dbuf_hold_impl(dn, 1, blk, B_TRUE, B_FALSE, FTAG, &db);
+		err = dbuf_hold_impl(dn, 1, blk, B_TRUE, B_FALSE, 0,
+		    FTAG, &db);
 		if (err != 0) {
 			/*
 			 * ignore error and continue

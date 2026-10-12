@@ -238,8 +238,8 @@ find_birth_txg(dsl_dataset_t *ds, zbookmark_err_phys_t *zep,
 		return (error);
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
-	error = dbuf_dnode_findbp(dn, zep->zb_level, zep->zb_blkid, &bp, NULL,
-	    NULL);
+	error = dbuf_dnode_findbp(dn, zep->zb_level, zep->zb_blkid, 0,
+	    &bp, NULL, NULL);
 	if (error == 0 && BP_IS_HOLE(&bp))
 		error = SET_ERROR(ENOENT);
 
@@ -891,8 +891,8 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		}
 
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
-		error = dbuf_dnode_findbp(dn, zep.zb_level, zep.zb_blkid, &bp,
-		    NULL, NULL);
+		error = dbuf_dnode_findbp(dn, zep.zb_level,
+		    zep.zb_blkid, 0, &bp, NULL, NULL);
 		if (error == EACCES)
 			error = 0;
 		else if (!error)
