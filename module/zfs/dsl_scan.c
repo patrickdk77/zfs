@@ -4159,8 +4159,8 @@ read_by_block_level(dsl_scan_t *scn, zbookmark_phys_t zb)
 	}
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
-	int error = dbuf_dnode_findbp(dn, zb.zb_level, zb.zb_blkid, &bp, NULL,
-	    NULL);
+	int error = dbuf_dnode_findbp(dn, zb.zb_level, zb.zb_blkid, 0,
+	    &bp, NULL, NULL);
 
 	if (error) {
 		rw_exit(&dn->dn_struct_rwlock);

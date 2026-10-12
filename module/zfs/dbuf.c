@@ -3431,7 +3431,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 __attribute__((always_inline))
 static inline int
 dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
-    dmu_buf_impl_t **parentp, blkptr_t **bpp)
+    dmu_flags_t flags, dmu_buf_impl_t **parentp, blkptr_t **bpp)
 {
 	*parentp = NULL;
 	*bpp = NULL;
@@ -3487,12 +3487,14 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 		int err;
 
 		err = dbuf_hold_impl(dn, level + 1,
-		    blkid >> epbs, fail_sparse, FALSE, NULL, parentp);
+		    blkid >> epbs, fail_sparse, FALSE, flags, NULL,
+		    parentp);
 
 		if (err)
 			return (err);
 		err = dbuf_read(*parentp, NULL, DB_RF_CANFAIL |
-		    DB_RF_HAVESTRUCT | DMU_READ_NO_PREFETCH);
+		    DB_RF_HAVESTRUCT | DMU_READ_NO_PREFETCH |
+		    (flags & DMU_READ_NO_DECRYPT));
 		if (err) {
 			dbuf_rele(*parentp, NULL);
 			*parentp = NULL;
@@ -3618,14 +3620,16 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
  */
 int
 dbuf_dnode_findbp(dnode_t *dn, uint64_t level, uint64_t blkid,
-    blkptr_t *bp, uint16_t *datablkszsec, uint8_t *indblkshift)
+    dmu_flags_t flags, blkptr_t *bp, uint16_t *datablkszsec,
+    uint8_t *indblkshift)
 {
 	dmu_buf_impl_t *dbp = NULL;
 	blkptr_t *bp2;
 	int err = 0;
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
 
-	err = dbuf_findbp(dn, level, blkid, B_FALSE, &dbp, &bp2);
+	err = dbuf_findbp(dn, level, blkid, B_FALSE, flags, &dbp,
+	    &bp2);
 	if (err == 0) {
 		ASSERT3P(bp2, !=, NULL);
 		*bp = *bp2;
@@ -3869,7 +3873,7 @@ dbuf_prefetch_impl(dnode_t *dn, int64_t level, uint64_t blkid,
 		dmu_buf_impl_t *db;
 
 		if (dbuf_hold_impl(dn, parent_level, parent_blkid,
-		    FALSE, TRUE, FTAG, &db) == 0) {
+		    FALSE, TRUE, 0, FTAG, &db) == 0) {
 			blkptr_t *bpp = db->db_buf->b_data;
 			bp = bpp[P2PHASE(curblkid, 1 << epbs)];
 			dbuf_rele(db, FTAG);
@@ -3999,7 +4003,7 @@ dbuf_hold_copy(dnode_t *dn, dmu_buf_impl_t *db)
  */
 int
 dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
-    boolean_t fail_sparse, boolean_t fail_uncached,
+    boolean_t fail_sparse, boolean_t fail_uncached, dmu_flags_t flags,
     const void *tag, dmu_buf_impl_t **dbp)
 {
 	dmu_buf_impl_t *db, *parent = NULL;
@@ -4030,7 +4034,8 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 			return (SET_ERROR(ENOENT));
 
 		ASSERT0P(parent);
-		err = dbuf_findbp(dn, level, blkid, fail_sparse, &parent, &bp);
+		err = dbuf_findbp(dn, level, blkid, fail_sparse,
+		    flags, &parent, &bp);
 		if (fail_sparse) {
 			if (err == 0 && bp && BP_IS_HOLE(bp))
 				err = SET_ERROR(ENOENT);
@@ -4124,7 +4129,8 @@ dmu_buf_impl_t *
 dbuf_hold_level(dnode_t *dn, int level, uint64_t blkid, const void *tag)
 {
 	dmu_buf_impl_t *db;
-	int err = dbuf_hold_impl(dn, level, blkid, FALSE, FALSE, tag, &db);
+	int err = dbuf_hold_impl(dn, level, blkid, FALSE, FALSE, 0,
+	    tag, &db);
 	return (err ? NULL : db);
 }
 

@@ -346,7 +346,7 @@ dmu_buf_impl_t *dbuf_hold(struct dnode *dn, uint64_t blkid, const void *tag);
 dmu_buf_impl_t *dbuf_hold_level(struct dnode *dn, int level, uint64_t blkid,
     const void *tag);
 int dbuf_hold_impl(struct dnode *dn, uint8_t level, uint64_t blkid,
-    boolean_t fail_sparse, boolean_t fail_uncached,
+    boolean_t fail_sparse, boolean_t fail_uncached, dmu_flags_t flags,
     const void *tag, dmu_buf_impl_t **dbp);
 
 int dbuf_prefetch_impl(struct dnode *dn, int64_t level, uint64_t blkid,
@@ -411,7 +411,8 @@ void dbuf_stats_init(dbuf_hash_table_t *hash);
 void dbuf_stats_destroy(void);
 
 int dbuf_dnode_findbp(dnode_t *dn, uint64_t level, uint64_t blkid,
-    blkptr_t *bp, uint16_t *datablkszsec, uint8_t *indblkshift);
+    dmu_flags_t flags, blkptr_t *bp, uint16_t *datablkszsec,
+    uint8_t *indblkshift);
 
 #ifdef USE_DNODE_HANDLE
 #define	DB_DNODE(_db)		((_db)->db_dnode_handle->dnh_dnode)

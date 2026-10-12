@@ -1970,7 +1970,8 @@ dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx)
 	dnode_setdirty(dn, tx);
 	if (size != dn->dn_datablksz) {
 		/* resize the old block */
-		err = dbuf_hold_impl(dn, 0, 0, TRUE, FALSE, FTAG, &db);
+		err = dbuf_hold_impl(dn, 0, 0, TRUE, FALSE, 0, FTAG,
+		    &db);
 		if (err == 0) {
 			dbuf_new_size(db, size, B_TRUE, tx);
 		} else if (err != ENOENT) {
@@ -2218,7 +2219,7 @@ dnode_partial_zero(dnode_t *dn, uint64_t off, uint64_t blkoff, uint64_t len,
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	res = dbuf_hold_impl(dn, 0, dbuf_whichblock(dn, 0, off), TRUE, FALSE,
-	    FTAG, &db);
+	    0, FTAG, &db);
 	rw_exit(&dn->dn_struct_rwlock);
 	if (res == 0) {
 		db_lock_type_t dblt;
@@ -2576,7 +2577,8 @@ dnode_next_offset_level(dnode_t *dn, int flags, int lvl, uint64_t blkid,
 			rrw_enter(&dmu_objset_ds(dn->dn_objset)->ds_bp_rwlock,
 			    RW_READER, FTAG);
 	} else {
-		error = dbuf_hold_impl(dn, lvl, blkid, TRUE, FALSE, FTAG, &db);
+		error = dbuf_hold_impl(dn, lvl, blkid, TRUE, FALSE,
+		    DMU_READ_NO_DECRYPT, FTAG, &db);
 		if (error) {
 			if (error != ENOENT)
 				return (error);
