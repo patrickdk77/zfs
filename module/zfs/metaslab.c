@@ -5429,6 +5429,7 @@ metaslab_alloc_dva_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	 * will also test spilling from special to normal.
 	 */
 	if (psize >= metaslab_force_ganging &&
+	    psize > spa->spa_min_alloc &&
 	    metaslab_force_ganging_pct > 0 &&
 	    (random_in_range(100) < MIN(metaslab_force_ganging_pct, 100))) {
 		metaslab_trace_add(zal, NULL, NULL, psize, d, TRACE_FORCE_GANG,
