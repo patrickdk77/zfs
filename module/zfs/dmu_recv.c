@@ -4244,6 +4244,8 @@ receive_read_payload_and_next_header(dmu_recv_cookie_t *drc, int len, void *buf)
 	if (drc->drc_next_rrd->header.drr_type == DRR_BEGIN) {
 		kmem_free(drc->drc_next_rrd, sizeof (*drc->drc_next_rrd));
 		drc->drc_next_rrd = NULL;
+		recv_report_stream_error(drc->drc_errors,
+		    "incomplete stream: DRR_BEGIN before DRR_END");
 		return (SET_ERROR(EINVAL));
 	}
 
