@@ -5039,8 +5039,14 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	 * datasets. Therefore, if this is a non-raw properties stream, we can
 	 * infer that the value should be ZIO_CRYPT_OFF and manually add that
 	 * to the received properties.
+	 *
+	 * A clone takes its encryption from its origin, and the kernel only
+	 * consumes the encryption property when it creates a dataset with no
+	 * origin. Anything else would set it as an ordinary property, which
+	 * needs the "encryption" permission, so leave it out for clones.
 	 */
-	if (stream_wantsnewfs && !raw && rcvprops != NULL &&
+	if (stream_wantsnewfs && !raw && origin[0] == '\0' &&
+	    rcvprops != NULL &&
 	    !nvlist_exists(cmdprops, zfs_prop_to_name(ZFS_PROP_ENCRYPTION))) {
 		if (oxprops == NULL)
 			oxprops = fnvlist_alloc();
