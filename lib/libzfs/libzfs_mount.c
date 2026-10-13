@@ -1083,19 +1083,12 @@ libzfs_path_contains(const char *path1, const char *path2)
  * enforced by mountpoint_cmp().
  */
 static int
-non_descendant_idx(zfs_handle_t **handles, size_t num_handles, int idx)
+non_descendant_idx(char **mnts, size_t num_handles, int idx)
 {
-	char parent[ZFS_MAXPROPLEN];
-	char child[ZFS_MAXPROPLEN];
 	int i;
 
-	verify(zfs_prop_get(handles[idx], ZFS_PROP_MOUNTPOINT, parent,
-	    sizeof (parent), NULL, NULL, 0, B_FALSE) == 0);
-
 	for (i = idx + 1; i < num_handles; i++) {
-		verify(zfs_prop_get(handles[i], ZFS_PROP_MOUNTPOINT, child,
-		    sizeof (child), NULL, NULL, 0, B_FALSE) == 0);
-		if (!libzfs_path_contains(parent, child))
+		if (!libzfs_path_contains(mnts[idx], mnts[i]))
 			break;
 	}
 	return (i);
@@ -1105,6 +1098,7 @@ typedef struct mnt_param {
 	libzfs_handle_t	*mnt_hdl;
 	taskq_t		*mnt_tq;
 	zfs_handle_t	**mnt_zhps; /* filesystems to mount */
+	char		**mnt_mnts; /* their mountpoints */
 	size_t		mnt_num_handles;
 	int		mnt_idx;	/* Index of selected entry to mount */
 	zfs_iter_f	mnt_func;
@@ -1117,13 +1111,15 @@ typedef struct mnt_param {
  */
 static void
 zfs_dispatch_mount(libzfs_handle_t *hdl, zfs_handle_t **handles,
-    size_t num_handles, int idx, zfs_iter_f func, void *data, taskq_t *tq)
+    char **mnts, size_t num_handles, int idx, zfs_iter_f func,
+    void *data, taskq_t *tq)
 {
 	mnt_param_t *mnt_param = zfs_alloc(hdl, sizeof (mnt_param_t));
 
 	mnt_param->mnt_hdl = hdl;
 	mnt_param->mnt_tq = tq;
 	mnt_param->mnt_zhps = handles;
+	mnt_param->mnt_mnts = mnts;
 	mnt_param->mnt_num_handles = num_handles;
 	mnt_param->mnt_idx = idx;
 	mnt_param->mnt_func = func;
@@ -1195,11 +1191,8 @@ zfs_mount_task(void *arg)
 	mnt_param_t *mp = arg;
 	int idx = mp->mnt_idx;
 	zfs_handle_t **handles = mp->mnt_zhps;
+	char **mnts = mp->mnt_mnts;
 	size_t num_handles = mp->mnt_num_handles;
-	char mountpoint[ZFS_MAXPROPLEN];
-
-	verify(zfs_prop_get(handles[idx], ZFS_PROP_MOUNTPOINT, mountpoint,
-	    sizeof (mountpoint), NULL, NULL, 0, B_FALSE) == 0);
 
 	if (mp->mnt_func(handles[idx], mp->mnt_data) != 0)
 		goto out;
@@ -1213,15 +1206,12 @@ zfs_mount_task(void *arg)
 	 * descendants of the filesystem we just dispatched.
 	 */
 	for (int i = idx + 1; i < num_handles;
-	    i = non_descendant_idx(handles, num_handles, i)) {
-		char child[ZFS_MAXPROPLEN];
-		verify(zfs_prop_get(handles[i], ZFS_PROP_MOUNTPOINT,
-		    child, sizeof (child), NULL, NULL, 0, B_FALSE) == 0);
-
-		if (!libzfs_path_contains(mountpoint, child))
+	    i = non_descendant_idx(mnts, num_handles, i)) {
+		if (!libzfs_path_contains(mnts[idx], mnts[i]))
 			break; /* not a descendant, return */
-		zfs_dispatch_mount(mp->mnt_hdl, handles, num_handles, i,
-		    mp->mnt_func, mp->mnt_data, mp->mnt_tq);
+		zfs_dispatch_mount(mp->mnt_hdl, handles, mnts,
+		    num_handles, i, mp->mnt_func, mp->mnt_data,
+		    mp->mnt_tq);
 	}
 
 out:
@@ -1275,6 +1265,22 @@ zfs_foreach_mountpoint(libzfs_handle_t *hdl, zfs_handle_t **handles,
 		return;
 	}
 
+	if (num_handles == 0)
+		return;
+
+	/*
+	 * Read every mountpoint before any task starts.  A task
+	 * mounting an encrypted dataset refreshes its handle's
+	 * properties, so no task may read another task's handle.
+	 */
+	char **mnts = zfs_alloc(hdl, num_handles * sizeof (char *));
+	for (int i = 0; i < num_handles; i++) {
+		char mnt[ZFS_MAXPROPLEN];
+		verify(zfs_prop_get(handles[i], ZFS_PROP_MOUNTPOINT,
+		    mnt, sizeof (mnt), NULL, NULL, 0, B_FALSE) == 0);
+		mnts[i] = zfs_strdup(hdl, mnt);
+	}
+
 	/*
 	 * Issue the callback function for each dataset using a parallel
 	 * algorithm that uses a thread pool to manage threads.
@@ -1288,7 +1294,7 @@ zfs_foreach_mountpoint(libzfs_handle_t *hdl, zfs_handle_t **handles,
 	 * these.
 	 */
 	for (int i = 0; i < num_handles;
-	    i = non_descendant_idx(handles, num_handles, i)) {
+	    i = non_descendant_idx(mnts, num_handles, i)) {
 		/*
 		 * Since the mountpoints have been sorted so that the zoned
 		 * filesystems are at the end, a zoned filesystem seen from
@@ -1297,12 +1303,16 @@ zfs_foreach_mountpoint(libzfs_handle_t *hdl, zfs_handle_t **handles,
 		if (zoneid == GLOBAL_ZONEID &&
 		    zfs_prop_get_int(handles[i], ZFS_PROP_ZONED))
 			break;
-		zfs_dispatch_mount(hdl, handles, num_handles, i, func, data,
-		    tq);
+		zfs_dispatch_mount(hdl, handles, mnts, num_handles, i,
+		    func, data, tq);
 	}
 
 	taskq_wait(tq);	/* wait for all scheduled mounts to complete */
 	taskq_destroy(tq);
+
+	for (int i = 0; i < num_handles; i++)
+		free(mnts[i]);
+	free(mnts);
 }
 
 /*
