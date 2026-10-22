@@ -2590,6 +2590,7 @@
       <enumerator name='LZC_SEND_FLAG_COMPRESS' value='4'/>
       <enumerator name='LZC_SEND_FLAG_RAW' value='8'/>
       <enumerator name='LZC_SEND_FLAG_SAVED' value='16'/>
+      <enumerator name='LZC_SEND_FLAG_CLONES' value='32'/>
     </enum-decl>
     <class-decl name='ddt_key_t' size-in-bits='320' is-struct='yes' naming-typedef-id='67f6d2cf' visibility='default' id='5fae1718'>
       <data-member access='public' layout-offset-in-bits='0'>
@@ -3009,7 +3010,8 @@
       <enumerator name='DRR_WRITE_EMBEDDED' value='8'/>
       <enumerator name='DRR_OBJECT_RANGE' value='9'/>
       <enumerator name='DRR_REDACT' value='10'/>
-      <enumerator name='DRR_NUMTYPES' value='11'/>
+      <enumerator name='DRR_CLONE' value='11'/>
+      <enumerator name='DRR_NUMTYPES' value='12'/>
     </enum-decl>
     <union-decl name='__anonymous_union__1' size-in-bits='2432' is-anonymous='yes' visibility='default' id='ac5ab595'>
       <data-member access='public'>
@@ -3044,6 +3046,9 @@
       </data-member>
       <data-member access='public'>
         <var-decl name='drr_redact' type-id='50389039' visibility='default'/>
+      </data-member>
+      <data-member access='public'>
+        <var-decl name='drr_clone' type-id='83045e51' visibility='default'/>
       </data-member>
       <data-member access='public'>
         <var-decl name='drr_checksum' type-id='a5fe3647' visibility='default'/>
@@ -3316,6 +3321,29 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='192'>
         <var-decl name='drr_toguid' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+    </class-decl>
+    <class-decl name='drr_clone' size-in-bits='448' is-struct='yes' visibility='default' id='83045e51'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='drr_object' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='drr_offset' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='128'>
+        <var-decl name='drr_length' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='192'>
+        <var-decl name='drr_toguid' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='256'>
+        <var-decl name='drr_refguid' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='320'>
+        <var-decl name='drr_refobject' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='384'>
+        <var-decl name='drr_refoffset' type-id='9c313c2d' visibility='default'/>
       </data-member>
     </class-decl>
     <class-decl name='drr_checksum' size-in-bits='2432' is-struct='yes' visibility='default' id='a5fe3647'>

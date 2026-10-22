@@ -31,19 +31,19 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm send
-.Op Fl DLPUVbcehnpsvw
+.Op Fl DLPUVbcehknpsvw
 .Op Fl R Op Fl X Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm zfs
 .Cm send
-.Op Fl DLPUVcensvw
+.Op Fl DLPUVceknsvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm zfs
 .Cm send
 .Fl -redact Ar redaction_bookmark
-.Op Fl DLPVcenpv
+.Op Fl DLPVceknpv
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar snapshot
 .Nm zfs
@@ -65,7 +65,7 @@
 .It Xo
 .Nm zfs
 .Cm send
-.Op Fl DLPUVbcehnpsvw
+.Op Fl DLPUVbcehknpsvw
 .Op Fl R Op Fl X Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
@@ -258,6 +258,34 @@ Generate a stream package that includes any snapshot holds (created with the
 command), and indicating to
 .Nm zfs Cm receive
 that the holds be applied to the dataset on the receiving system.
+.It Fl k , -clone-refs
+Send each block that block cloning shares between files only once, and send
+later copies as references that the receiver clones.
+An incremental stream from a snapshot can also reference blocks in that
+snapshot, unless the send is redacted.
+To find them, the send first reads the snapshot's block tree.
+Blocks shared with other datasets, and shared blocks past what one send can
+track, are sent in full.
+The receiving pool needs the
+.Sy block_cloning
+feature enabled, and older ZFS versions reject the stream.
+The receive fails if the receiving pool holds a referenced block at a
+different block size, so use
+.Fl L
+on every send of a dataset or on none.
+It also fails if the receiving pool holds a referenced block redacted;
+send without
+.Fl k
+in that case.
+The size estimate from
+.Fl n
+and
+.Fl v
+may count each referenced block as data.
+This flag has no effect on resumed sends or on raw sends of encrypted
+datasets, and
+.Nm zfs Cm receive Fl c
+refuses the stream.
 .It Fl i Ar snapshot
 Generate an incremental stream from the first
 .Ar snapshot
@@ -335,7 +363,7 @@ You will be able to receive your streams on future versions of ZFS.
 .It Xo
 .Nm zfs
 .Cm send
-.Op Fl DLPVcenvw
+.Op Fl DLPVceknvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Xc
@@ -453,6 +481,34 @@ See
 for details on ZFS feature flags and the
 .Sy embedded_data
 feature.
+.It Fl k , -clone-refs
+Send each block that block cloning shares between files only once, and send
+later copies as references that the receiver clones.
+An incremental stream from a snapshot can also reference blocks in that
+snapshot, unless the send is redacted.
+To find them, the send first reads the snapshot's block tree.
+Blocks shared with other datasets, and shared blocks past what one send can
+track, are sent in full.
+The receiving pool needs the
+.Sy block_cloning
+feature enabled, and older ZFS versions reject the stream.
+The receive fails if the receiving pool holds a referenced block at a
+different block size, so use
+.Fl L
+on every send of a dataset or on none.
+It also fails if the receiving pool holds a referenced block redacted;
+send without
+.Fl k
+in that case.
+The size estimate from
+.Fl n
+and
+.Fl v
+may count each referenced block as data.
+This flag has no effect on resumed sends or on raw sends of encrypted
+datasets, and
+.Nm zfs Cm receive Fl c
+refuses the stream.
 .It Fl i Ar snapshot Ns | Ns Ar bookmark
 Generate an incremental send stream.
 The incremental source must be an earlier snapshot in the destination's history.
@@ -496,7 +552,7 @@ regardless of
 .Nm zfs
 .Cm send
 .Fl -redact Ar redaction_bookmark
-.Op Fl DLPVcenpv
+.Op Fl DLPVceknpv
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar snapshot
 .Xc

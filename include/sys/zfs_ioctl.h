@@ -138,6 +138,7 @@ typedef enum drr_headertype {
 #define	DMU_BACKUP_FEATURE_SWITCH_TO_LARGE_BLOCKS (1 << 27)
 #define	DMU_BACKUP_FEATURE_LONGNAME		(1 << 28)
 #define	DMU_BACKUP_FEATURE_LARGE_MICROZAP	(1 << 29)
+#define	DMU_BACKUP_FEATURE_CLONES		(1 << 30)
 
 /*
  * Mask of all supported backup features
@@ -149,7 +150,7 @@ typedef enum drr_headertype {
     DMU_BACKUP_FEATURE_RAW | DMU_BACKUP_FEATURE_HOLDS | \
     DMU_BACKUP_FEATURE_REDACTED | DMU_BACKUP_FEATURE_SWITCH_TO_LARGE_BLOCKS | \
     DMU_BACKUP_FEATURE_ZSTD | DMU_BACKUP_FEATURE_LONGNAME | \
-    DMU_BACKUP_FEATURE_LARGE_MICROZAP)
+    DMU_BACKUP_FEATURE_LARGE_MICROZAP | DMU_BACKUP_FEATURE_CLONES)
 
 /* Are all features in the given flag word currently supported? */
 #define	DMU_STREAM_SUPPORTED(x)	(!((x) & ~DMU_BACKUP_FEATURE_MASK))
@@ -238,6 +239,7 @@ typedef struct dmu_replay_record {
 		DRR_BEGIN, DRR_OBJECT, DRR_FREEOBJECTS,
 		DRR_WRITE, DRR_FREE, DRR_END, DRR_WRITE_BYREF,
 		DRR_SPILL, DRR_WRITE_EMBEDDED, DRR_OBJECT_RANGE, DRR_REDACT,
+		DRR_CLONE,
 		DRR_NUMTYPES
 	} drr_type;
 	uint32_t drr_payloadlen;
@@ -359,6 +361,15 @@ typedef struct dmu_replay_record {
 			uint64_t drr_length;
 			uint64_t drr_toguid;
 		} drr_redact;
+		struct drr_clone {
+			uint64_t drr_object;
+			uint64_t drr_offset;
+			uint64_t drr_length;
+			uint64_t drr_toguid;
+			uint64_t drr_refguid;
+			uint64_t drr_refobject;
+			uint64_t drr_refoffset;
+		} drr_clone;
 
 		/*
 		 * Note: drr_checksum is overlaid with all record types

@@ -749,7 +749,7 @@ typedef struct send_dump_data {
 	uint64_t prevsnap_obj;
 	boolean_t seenfrom, seento, replicate, doall, fromorigin;
 	boolean_t dryrun, parsable, progress, embed_data, std_out;
-	boolean_t large_block, compress, raw, holds;
+	boolean_t large_block, compress, raw, holds, clone_refs;
 	boolean_t progressastitle;
 	int outfd;
 	boolean_t err;
@@ -1189,6 +1189,8 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 		flags |= LZC_SEND_FLAG_COMPRESS;
 	if (sdd->raw)
 		flags |= LZC_SEND_FLAG_RAW;
+	if (sdd->clone_refs)
+		flags |= LZC_SEND_FLAG_CLONES;
 
 	if (!sdd->doall && !isfromsnap && !istosnap) {
 		if (sdd->replicate) {
@@ -1611,6 +1613,8 @@ lzc_flags_from_sendflags(const sendflags_t *flags)
 		lzc_flags |= LZC_SEND_FLAG_RAW;
 	if (flags->saved)
 		lzc_flags |= LZC_SEND_FLAG_SAVED;
+	if (flags->clone_refs)
+		lzc_flags |= LZC_SEND_FLAG_CLONES;
 
 	return (lzc_flags);
 }
@@ -2423,6 +2427,7 @@ zfs_send_cb_impl(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	sdd.compress = flags->compress;
 	sdd.raw = flags->raw;
 	sdd.holds = flags->holds;
+	sdd.clone_refs = flags->clone_refs;
 	sdd.filter_cb = filter_func;
 	sdd.filter_cb_arg = cb_arg;
 	if (debugnvp)
@@ -4177,6 +4182,7 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 		case DRR_WRITE_BYREF:
 		case DRR_FREEOBJECTS:
 		case DRR_FREE:
+		case DRR_CLONE:
 			break;
 
 		default:
@@ -4695,6 +4701,9 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	    DMU_BACKUP_FEATURE_RAW;
 	boolean_t embedded = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
 	    DMU_BACKUP_FEATURE_EMBED_DATA;
+	boolean_t clones =
+	    DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
+	    DMU_BACKUP_FEATURE_CLONES;
 	stream_wantsnewfs = (drrb->drr_fromguid == 0 ||
 	    (drrb->drr_flags & DRR_FLAG_CLONE) || originsnap) && !resuming;
 	stream_resumingnewfs = (drrb->drr_fromguid == 0 ||
@@ -5304,11 +5313,35 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			    "instead.");
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
+		case ZFS_ERR_STREAM_CLONE_BLOCK_SIZE:
+			zfs_error_aux(hdl,
+			    "stream clones a block that this "
+			    "pool stores at a different block "
+			    "size,\nas after an earlier send "
+			    "without -L (--large-block). "
+			    "Sending without -k,\nor with -L "
+			    "the same way on every send, avoids "
+			    "this.");
+			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
+			break;
 		case ENOTSUP:
-			if (flags->heal)
+			if (flags->heal && clones)
+				zfs_error_aux(hdl,
+				    "corrective receive does not "
+				    "accept a stream made with "
+				    "zfs send -k.");
+			else if (flags->heal)
 				zfs_error_aux(hdl,
 				    "stream is not compatible with the "
 				    "data in the pool.");
+			else if (clones)
+				zfs_error_aux(hdl,
+				    "pool must be upgraded to "
+				    "receive this stream, or "
+				    "block cloning\nis off "
+				    "(feature@block_cloning or "
+				    "the zfs_bclone_enabled "
+				    "tunable).");
 			else
 				zfs_error_aux(hdl,
 				    "pool must be upgraded to receive this "

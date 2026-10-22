@@ -47,6 +47,7 @@
 #include <sys/dmu_recv.h>
 #include <sys/dsl_destroy.h>
 #include <sys/blkptr.h>
+#include <sys/brt.h>
 #include <sys/dsl_bookmark.h>
 #include <sys/zfeature.h>
 #include <sys/bqueue.h>
@@ -92,6 +93,14 @@ static const boolean_t zfs_send_set_freerecords_bit = B_TRUE;
 
 /* Set this tunable to FALSE is disable sending unmodified spill blocks. */
 static int zfs_send_unmodified_spill_blocks = B_TRUE;
+
+/*
+ * Most blocks one clone-aware send remembers.  It counts every block
+ * that brt_maybe_exists() reports, which answers per BRT range, so
+ * not all of them are shared.  Copies of blocks it could not remember
+ * are sent as data.
+ */
+#define	SEND_CLONE_TABLE_MAX	262144
 
 static inline boolean_t
 overflow_multiply(uint64_t a, uint64_t b, uint64_t *c)
@@ -155,6 +164,10 @@ struct send_range {
 			boolean_t		io_outstanding;
 			boolean_t		io_compressed;
 			int			io_err;
+			boolean_t		clone;
+			uint64_t		clone_refguid;
+			uint64_t		clone_refobj;
+			uint64_t		clone_refoff;
 		} data;
 		struct srh {
 			uint32_t		datablksz;
@@ -213,6 +226,179 @@ typedef struct dmu_send_cookie {
 } dmu_send_cookie_t;
 
 static int do_dump(dmu_send_cookie_t *dscp, struct send_range *range);
+
+/*
+ * Blocks already in this stream or in the from-snapshot, keyed on
+ * DVA[0] and physical birth.  A later block with the same key is sent
+ * as a DRR_CLONE of the first.
+ */
+typedef struct send_clone_ent {
+	avl_node_t	sce_node;
+	uint64_t	sce_vdev;
+	uint64_t	sce_offset;
+	uint64_t	sce_birth;
+	uint64_t	sce_guid;
+	uint64_t	sce_object;
+	uint64_t	sce_foffset;
+} send_clone_ent_t;
+
+static int
+send_clone_compare(const void *a, const void *b)
+{
+	const send_clone_ent_t *x = a;
+	const send_clone_ent_t *y = b;
+	int c;
+
+	c = TREE_CMP(x->sce_vdev, y->sce_vdev);
+	if (c != 0)
+		return (c);
+	c = TREE_CMP(x->sce_offset, y->sce_offset);
+	if (c != 0)
+		return (c);
+	return (TREE_CMP(x->sce_birth, y->sce_birth));
+}
+
+static avl_tree_t *
+send_clone_table_alloc(void)
+{
+	avl_tree_t *t = kmem_alloc(sizeof (*t), KM_SLEEP);
+
+	avl_create(t, send_clone_compare, sizeof (send_clone_ent_t),
+	    offsetof(send_clone_ent_t, sce_node));
+	return (t);
+}
+
+static void
+send_clone_table_free(avl_tree_t *t)
+{
+	send_clone_ent_t *e;
+	void *cookie = NULL;
+
+	if (t == NULL)
+		return;
+	while ((e = avl_destroy_nodes(t, &cookie)) != NULL)
+		kmem_free(e, sizeof (*e));
+	avl_destroy(t);
+	kmem_free(t, sizeof (*t));
+}
+
+/*
+ * Returns the entry for bp if one exists.  Otherwise records bp at
+ * (guid, object, offset) when there is room, and returns NULL.
+ */
+static send_clone_ent_t *
+send_clone_lookup_insert(avl_tree_t *t, const blkptr_t *bp,
+    uint64_t guid, uint64_t object, uint64_t offset)
+{
+	send_clone_ent_t key = { 0 };
+	send_clone_ent_t *e;
+	avl_index_t where;
+
+	key.sce_vdev = DVA_GET_VDEV(&bp->blk_dva[0]);
+	key.sce_offset = DVA_GET_OFFSET(&bp->blk_dva[0]);
+	key.sce_birth = BP_GET_PHYSICAL_BIRTH(bp);
+	e = avl_find(t, &key, &where);
+	if (e != NULL)
+		return (e);
+	if (avl_numnodes(t) >= SEND_CLONE_TABLE_MAX)
+		return (NULL);
+	key.sce_guid = guid;
+	key.sce_object = object;
+	key.sce_foffset = offset;
+	e = kmem_alloc(sizeof (*e), KM_SLEEP);
+	*e = key;
+	avl_insert(t, e, where);
+	return (NULL);
+}
+
+static boolean_t
+send_clone_candidate(const blkptr_t *bp, dmu_object_type_t type,
+    uint64_t blkid, uint32_t datablksz, uint64_t featureflags)
+{
+	if (blkid == DMU_SPILL_BLKID)
+		return (B_FALSE);
+	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp))
+		return (B_FALSE);
+	if (BP_IS_REDACTED(bp) || BP_IS_GANG(bp))
+		return (B_FALSE);
+	if (BP_GET_LEVEL(bp) != 0)
+		return (B_FALSE);
+	if (type != DMU_OT_PLAIN_FILE_CONTENTS && type != DMU_OT_ZVOL)
+		return (B_FALSE);
+	if (BP_GET_LSIZE(bp) != datablksz)
+		return (B_FALSE);
+	if (datablksz > SPA_OLD_MAXBLOCKSIZE &&
+	    !(featureflags & DMU_BACKUP_FEATURE_LARGE_BLOCKS))
+		return (B_FALSE);
+	return (B_TRUE);
+}
+
+struct send_clone_seed_arg {
+	avl_tree_t *table;
+	uint64_t guid;
+	uint64_t featureflags;
+	boolean_t signaled;
+};
+
+static int
+send_clone_seed_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
+    const zbookmark_phys_t *zb, const struct dnode_phys *dnp,
+    void *arg)
+{
+	(void) zilog;
+	struct send_clone_seed_arg *sa = arg;
+	uint32_t datablksz;
+
+	if (issig()) {
+		sa->signaled = B_TRUE;
+		return (SET_ERROR(EINTR));
+	}
+	/* Leave half the table for blocks the stream itself sends. */
+	if (avl_numnodes(sa->table) >= SEND_CLONE_TABLE_MAX / 2)
+		return (SET_ERROR(ENOSPC));
+	if (zb->zb_level == ZB_DNODE_LEVEL) {
+		if (zb->zb_object != DMU_META_DNODE_OBJECT &&
+		    dnp->dn_type != DMU_OT_PLAIN_FILE_CONTENTS &&
+		    dnp->dn_type != DMU_OT_ZVOL)
+			return (TRAVERSE_VISIT_NO_CHILDREN);
+		return (0);
+	}
+	if (zb->zb_object == DMU_META_DNODE_OBJECT ||
+	    DMU_OBJECT_IS_SPECIAL(zb->zb_object))
+		return (0);
+	if (zb->zb_level != 0 || dnp == NULL)
+		return (0);
+	datablksz = dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT;
+	if (!send_clone_candidate(bp, dnp->dn_type, zb->zb_blkid,
+	    datablksz, sa->featureflags))
+		return (0);
+	if (!brt_maybe_exists(spa, bp))
+		return (0);
+	(void) send_clone_lookup_insert(sa->table, bp, sa->guid,
+	    zb->zb_object, zb->zb_blkid * datablksz);
+	return (0);
+}
+
+/*
+ * Record the from-snapshot's shared blocks so an incremental can
+ * reference them; the receiver always has the from-snapshot.  The
+ * walk reads only block pointers and dnode types, so it needs no key.
+ * A full table or a read error ends the walk early, which only costs
+ * data records.  Only a signal fails the send.
+ */
+static int
+send_clone_seed(avl_tree_t *t, dsl_dataset_t *from_ds, uint64_t guid,
+    uint64_t featureflags)
+{
+	struct send_clone_seed_arg sa = {
+		.table = t, .guid = guid, .featureflags = featureflags
+	};
+
+	(void) traverse_dataset(from_ds, 0, TRAVERSE_PRE |
+	    TRAVERSE_PREFETCH_METADATA | TRAVERSE_NO_DECRYPT,
+	    send_clone_seed_cb, &sa);
+	return (sa.signaled ? SET_ERROR(EINTR) : 0);
+}
 
 static void
 range_free(struct send_range *range)
@@ -438,6 +624,40 @@ dump_redact(dmu_send_cookie_t *dscp, uint64_t object, uint64_t offset,
 	drrr->drr_toguid = dscp->dsc_toguid;
 	dscp->dsc_pending_op = PENDING_REDACT;
 
+	return (0);
+}
+
+static int
+dump_clone(dmu_send_cookie_t *dscp, uint64_t object, uint64_t offset,
+    uint64_t length, uint64_t refguid, uint64_t refobject,
+    uint64_t refoffset)
+{
+	struct drr_clone *drrc = &dscp->dsc_drr->drr_u.drr_clone;
+
+	ASSERT(object > dscp->dsc_last_data_object ||
+	    (object == dscp->dsc_last_data_object &&
+	    offset > dscp->dsc_last_data_offset));
+	dscp->dsc_last_data_object = object;
+	dscp->dsc_last_data_offset = offset + length - 1;
+
+	if (dscp->dsc_pending_op != PENDING_NONE) {
+		if (dump_record(dscp, NULL, 0) != 0)
+			return (SET_ERROR(EINTR));
+		dscp->dsc_pending_op = PENDING_NONE;
+	}
+
+	memset(dscp->dsc_drr, 0, sizeof (dmu_replay_record_t));
+	dscp->dsc_drr->drr_type = DRR_CLONE;
+	drrc->drr_object = object;
+	drrc->drr_offset = offset;
+	drrc->drr_length = length;
+	drrc->drr_toguid = dscp->dsc_toguid;
+	drrc->drr_refguid = refguid;
+	drrc->drr_refobject = refobject;
+	drrc->drr_refoffset = refoffset;
+
+	if (dump_record(dscp, NULL, 0) != 0)
+		return (SET_ERROR(EINTR));
 	return (0);
 }
 
@@ -930,6 +1150,13 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 			    srdp->datablksz, bp);
 			return (err);
 		}
+		if (srdp->clone) {
+			err = dump_clone(dscp, range->object,
+			    range->start_blkid * srdp->datablksz,
+			    srdp->datablksz, srdp->clone_refguid,
+			    srdp->clone_refobj, srdp->clone_refoff);
+			return (err);
+		}
 		ASSERT(range->object > dscp->dsc_resume_object ||
 		    (range->object == dscp->dsc_resume_object &&
 		    (range->start_blkid == DMU_SPILL_BLKID ||
@@ -1062,6 +1289,7 @@ range_alloc(enum type type, uint64_t object, uint64_t start_blkid,
 		range->sru.data.io_outstanding = 0;
 		range->sru.data.io_err = 0;
 		range->sru.data.io_compressed = B_FALSE;
+		range->sru.data.clone = B_FALSE;
 	} else if (type == OBJECT) {
 		range->sru.object.spill_range = NULL;
 	}
@@ -1592,8 +1820,44 @@ struct send_reader_thread_arg {
 	boolean_t cancel;
 	boolean_t issue_reads;
 	uint64_t featureflags;
+	uint64_t toguid;
+	avl_tree_t *clone_table;
 	int error;
 };
+
+/*
+ * Turn this data range into a DRR_CLONE if its block was sent before.
+ * The reader thread sees ranges in stream order, so a hit always
+ * refers to a block the receiver already has.
+ */
+static boolean_t
+send_clone_check(struct send_reader_thread_arg *srta,
+    struct send_range *range)
+{
+	struct srd *srdp = &range->sru.data;
+	const blkptr_t *bp = &srdp->bp;
+	spa_t *spa = srta->smta->os->os_spa;
+	send_clone_ent_t *e;
+
+	if (srta->clone_table == NULL)
+		return (B_FALSE);
+	if (!send_clone_candidate(bp, srdp->obj_type,
+	    range->start_blkid, srdp->datablksz, srta->featureflags))
+		return (B_FALSE);
+	if (!brt_maybe_exists(spa, bp))
+		return (B_FALSE);
+
+	e = send_clone_lookup_insert(srta->clone_table, bp,
+	    srta->toguid, range->object,
+	    range->start_blkid * srdp->datablksz);
+	if (e == NULL)
+		return (B_FALSE);
+	srdp->clone = B_TRUE;
+	srdp->clone_refguid = e->sce_guid;
+	srdp->clone_refobj = e->sce_object;
+	srdp->clone_refoff = e->sce_foffset;
+	return (B_TRUE);
+}
 
 static void
 dmu_send_read_done(zio_t *zio)
@@ -1659,6 +1923,8 @@ issue_data_read(struct send_reader_thread_arg *srta, struct send_range *range)
 	srdp->datasz = (zioflags & ZIO_FLAG_RAW_COMPRESS) ?
 	    BP_GET_PSIZE(bp) : BP_GET_LSIZE(bp);
 
+	if (send_clone_check(srta, range))
+		return;
 	if (!srta->issue_reads)
 		return;
 	if (BP_IS_REDACTED(bp))
@@ -1978,6 +2244,8 @@ struct dmu_send_params {
 	boolean_t compressok;
 	boolean_t rawok;
 	boolean_t savedok;
+	boolean_t clonesok;
+	uint64_t from_dsobj;
 	uint64_t resumeobj;
 	uint64_t resumeoff;
 	uint64_t saved_guid;
@@ -2042,6 +2310,14 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 	    (DMU_BACKUP_FEATURE_COMPRESSED | DMU_BACKUP_FEATURE_RAW)) != 0 &&
 	    dsl_dataset_feature_is_active(to_ds, SPA_FEATURE_ZSTD_COMPRESS)) {
 		*featureflags |= DMU_BACKUP_FEATURE_ZSTD;
+	}
+
+	if (dspp->clonesok && !dspp->savedok &&
+	    dspp->resumeobj == 0 && dspp->resumeoff == 0 &&
+	    !(*featureflags & DMU_BACKUP_FEATURE_RAW) &&
+	    spa_feature_is_active(dp->dp_spa,
+	    SPA_FEATURE_BLOCK_CLONING)) {
+		*featureflags |= DMU_BACKUP_FEATURE_CLONES;
 	}
 
 	if (dspp->resumeobj != 0 || dspp->resumeoff != 0) {
@@ -2200,7 +2476,7 @@ setup_merge_thread(struct send_merge_thread_arg *smt_arg,
 static void
 setup_reader_thread(struct send_reader_thread_arg *srt_arg,
     struct dmu_send_params *dspp, struct send_merge_thread_arg *smt_arg,
-    uint64_t featureflags)
+    uint64_t featureflags, avl_tree_t *clone_table)
 {
 	VERIFY0(bqueue_init(&srt_arg->q, zfs_send_queue_ff,
 	    MAX(zfs_send_queue_length, 2 * zfs_max_recordsize),
@@ -2208,6 +2484,8 @@ setup_reader_thread(struct send_reader_thread_arg *srt_arg,
 	srt_arg->smta = smt_arg;
 	srt_arg->issue_reads = !dspp->dso->dso_dryrun;
 	srt_arg->featureflags = featureflags;
+	srt_arg->toguid = dsl_dataset_phys(dspp->to_ds)->ds_guid;
+	srt_arg->clone_table = clone_table;
 	(void) thread_create(NULL, 0, send_reader_thread, srt_arg, 0,
 	    curproc, TS_RUN, minclsyspri);
 }
@@ -2449,6 +2727,8 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	struct send_range *range;
 	redaction_list_t *from_rl = NULL;
 	redaction_list_t *redact_rl = NULL;
+	avl_tree_t *clone_table = NULL;
+	dsl_dataset_t *clone_from_ds = NULL;
 	boolean_t resuming = (dspp->resumeobj != 0 || dspp->resumeoff != 0);
 	boolean_t book_resuming = resuming;
 
@@ -2544,6 +2824,20 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	dsc.dsc_resume_object = dspp->resumeobj;
 	dsc.dsc_resume_offset = dspp->resumeoff;
 
+	if (featureflags & DMU_BACKUP_FEATURE_CLONES) {
+		clone_table = send_clone_table_alloc();
+		if (dspp->from_dsobj != 0 &&
+		    dspp->redactbook == NULL &&
+		    brt_get_saved(dp->dp_spa) != 0) {
+			err = dsl_dataset_hold_obj(dp,
+			    dspp->from_dsobj, FTAG, &clone_from_ds);
+			if (err == 0) {
+				dsl_dataset_long_hold(clone_from_ds,
+				    FTAG);
+			}
+		}
+	}
+
 	dsl_pool_rele(dp, tag);
 
 	char *payload = NULL;
@@ -2596,6 +2890,18 @@ dmu_send_impl(struct dmu_send_params *dspp)
 		}
 	}
 
+	if (err == 0 && clone_from_ds != NULL) {
+		err = send_clone_seed(clone_table, clone_from_ds,
+		    ancestor_zb->zbm_guid, featureflags);
+		dsl_dataset_long_rele(clone_from_ds, FTAG);
+		dsl_dataset_rele(clone_from_ds, FTAG);
+		clone_from_ds = NULL;
+	}
+	if (err != 0) {
+		fnvlist_free(nvl);
+		goto out;
+	}
+
 	if (resuming || book_resuming) {
 		err = setup_resume_points(dspp, to_arg, from_arg,
 		    rlt_arg, smt_arg, resuming, os, redact_rl, nvl);
@@ -2638,7 +2944,8 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	setup_from_thread(from_arg, from_rl, dssp);
 	setup_redact_list_thread(rlt_arg, dspp, redact_rl, dssp);
 	setup_merge_thread(smt_arg, dspp, from_arg, to_arg, rlt_arg, os);
-	setup_reader_thread(srt_arg, dspp, smt_arg, featureflags);
+	setup_reader_thread(srt_arg, dspp, smt_arg, featureflags,
+	    clone_table);
 
 	range = bqueue_dequeue(&srt_arg->q);
 	while (err == 0 && !range->eos_marker) {
@@ -2700,6 +3007,11 @@ dmu_send_impl(struct dmu_send_params *dspp)
 			err = dsc.dsc_err;
 	}
 out:
+	send_clone_table_free(clone_table);
+	if (clone_from_ds != NULL) {
+		dsl_dataset_long_rele(clone_from_ds, FTAG);
+		dsl_dataset_rele(clone_from_ds, FTAG);
+	}
 	mutex_enter(&to_ds->ds_sendstream_lock);
 	list_remove(&to_ds->ds_sendstreams, dssp);
 	mutex_exit(&to_ds->ds_sendstream_lock);
@@ -2731,8 +3043,8 @@ out:
 int
 dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
     boolean_t embedok, boolean_t large_block_ok, boolean_t compressok,
-    boolean_t rawok, boolean_t savedok, int outfd, offset_t *off,
-    dmu_send_outparams_t *dsop)
+    boolean_t rawok, boolean_t savedok, boolean_t clonesok, int outfd,
+    offset_t *off, dmu_send_outparams_t *dsop)
 {
 	int err;
 	dsl_dataset_t *fromds;
@@ -2747,6 +3059,7 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 	dspp.tag = FTAG;
 	dspp.rawok = rawok;
 	dspp.savedok = savedok;
+	dspp.clonesok = clonesok;
 
 	dsflags = (rawok) ? DS_HOLD_FLAG_NONE : DS_HOLD_FLAG_DECRYPT;
 	err = dsl_pool_hold(pool, FTAG, &dspp.dp);
@@ -2799,6 +3112,7 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 		    dsl_dataset_is_before(dspp.to_ds, fromds, 0);
 		dspp.is_clone = (dspp.to_ds->ds_dir !=
 		    fromds->ds_dir);
+		dspp.from_dsobj = fromds->ds_object;
 		dsl_dataset_rele(fromds, FTAG);
 		if (!is_before) {
 			dsl_pool_rele(dspp.dp, FTAG);
@@ -2821,9 +3135,9 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 int
 dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
     boolean_t large_block_ok, boolean_t compressok, boolean_t rawok,
-    boolean_t savedok, uint64_t resumeobj, uint64_t resumeoff,
-    const char *redactbook, int outfd, offset_t *off,
-    dmu_send_outparams_t *dsop)
+    boolean_t savedok, boolean_t clonesok, uint64_t resumeobj,
+    uint64_t resumeoff, const char *redactbook, int outfd,
+    offset_t *off, dmu_send_outparams_t *dsop)
 {
 	int err = 0;
 	ds_hold_flags_t dsflags;
@@ -2845,6 +3159,7 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 	dspp.resumeoff = resumeoff;
 	dspp.rawok = rawok;
 	dspp.savedok = savedok;
+	dspp.clonesok = clonesok;
 
 	if (fromsnap != NULL && strpbrk(fromsnap, "@#") == NULL)
 		return (SET_ERROR(EINVAL));
@@ -3009,6 +3324,8 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 						    DS_FIELD_IVSET_GUID, 8, 1,
 						    &zb->zbm_ivset_guid);
 					}
+					dspp.from_dsobj =
+					    fromds->ds_object;
 				}
 				dsl_dataset_rele(fromds, FTAG);
 			}

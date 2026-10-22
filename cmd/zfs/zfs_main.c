@@ -317,12 +317,12 @@ get_usage(zfs_help_t idx)
 	case HELP_ROLLBACK:
 		return ("\trollback [-rRf] <snapshot>\n");
 	case HELP_SEND:
-		return ("\tsend [-DLPbcehnpsUVvw] "
+		return ("\tsend [-DLPbcehknpsUVvw] "
 		    "[-i|-I snapshot]\n"
 		    "\t     [-R [-X dataset[,dataset]...]]     <snapshot>\n"
-		    "\tsend [-DnVvPLecwU] [-i snapshot|bookmark] "
+		    "\tsend [-DnVvPLecwUk] [-i snapshot|bookmark] "
 		    "<filesystem|volume|snapshot>\n"
-		    "\tsend [-DnPpVvLec] [-i bookmark|snapshot] "
+		    "\tsend [-DnPpVvLeck] [-i bookmark|snapshot] "
 		    "--redact <bookmark> <snapshot>\n"
 		    "\tsend [-nVvPe] -t <receive_resume_token>\n"
 		    "\tsend [-PnVv] --saved filesystem\n");
@@ -4783,11 +4783,12 @@ zfs_do_send(int argc, char **argv)
 		{"saved",	no_argument,		NULL, 'S'},
 		{"exclude",	required_argument,	NULL, 'X'},
 		{"no-preserve-encryption",	no_argument,	NULL, 'U'},
+		{"clone-refs",	no_argument,		NULL, 'k'},
 		{0, 0, 0, 0}
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":i:I:RsDpVvnPLeht:cwbd:SX:U",
+	while ((c = getopt_long(argc, argv, ":i:I:RsDpVvnPLeht:cwbd:SX:Uk",
 	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'X':
@@ -4863,6 +4864,9 @@ zfs_do_send(int argc, char **argv)
 			break;
 		case 'c':
 			flags.compress = B_TRUE;
+			break;
+		case 'k':
+			flags.clone_refs = B_TRUE;
 			break;
 		case 'w':
 			flags.raw = B_TRUE;
@@ -4964,7 +4968,8 @@ zfs_do_send(int argc, char **argv)
 		if (fromname != NULL || flags.replicate || flags.props ||
 		    flags.doall || flags.backup ||
 		    flags.holds || flags.largeblock || flags.embed_data ||
-		    flags.compress || flags.raw || redactbook != NULL) {
+		    flags.compress || flags.raw || flags.clone_refs ||
+		    redactbook != NULL) {
 			free(excludes.list);
 
 			(void) fprintf(stderr, "incompatible flags "

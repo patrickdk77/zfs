@@ -57,6 +57,7 @@
 #include <sys/objlist.h>
 #ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
+#include <sys/zfs_vnops.h>
 #endif
 #include <sys/zfs_file.h>
 #include <sys/cred.h>
@@ -104,6 +105,13 @@ typedef struct receive_defer_range {
 	uint64_t rdr_last;	/* last slot in the range (inclusive) */
 } receive_defer_range_t;
 
+/* The lowest (object, offset) a txg wrote; see receive_clone(). */
+typedef struct receive_write_txg {
+	uint64_t rwt_txg;
+	uint64_t rwt_object;
+	uint64_t rwt_offset;
+} receive_write_txg_t;
+
 struct receive_writer_arg {
 	objset_t *os;
 	boolean_t byteswap;
@@ -125,6 +133,11 @@ struct receive_writer_arg {
 	boolean_t spill; /* DRR_FLAG_SPILL_BLOCK set */
 	boolean_t full;  /* this is a full send stream */
 	uint64_t featureflags; /* from DRR_BEGIN */
+	uint64_t toguid;
+	uint64_t fromguid;
+	dsl_dataset_t *fromds;
+	objset_t *fromos;
+	receive_write_txg_t write_txgs[TXG_SIZE];
 	uint64_t last_object;
 	uint64_t last_offset;
 	uint64_t max_object; /* highest object ID referenced in stream */
@@ -228,6 +241,15 @@ byteswap_record(dmu_replay_record_t *drr)
 		DO64(drr_free.drr_offset);
 		DO64(drr_free.drr_length);
 		DO64(drr_free.drr_toguid);
+		break;
+	case DRR_CLONE:
+		DO64(drr_clone.drr_object);
+		DO64(drr_clone.drr_offset);
+		DO64(drr_clone.drr_length);
+		DO64(drr_clone.drr_toguid);
+		DO64(drr_clone.drr_refguid);
+		DO64(drr_clone.drr_refobject);
+		DO64(drr_clone.drr_refoffset);
 		break;
 	case DRR_SPILL:
 		DO64(drr_spill.drr_object);
@@ -447,6 +469,13 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 		if (drba->drba_cookie->drc_force)
 			return (SET_ERROR(EINVAL));
 
+		/*
+		 * Healing skips CLONE records, so it would leave the
+		 * cloned copies unhealed.
+		 */
+		if (featureflags & DMU_BACKUP_FEATURE_CLONES)
+			return (SET_ERROR(ENOTSUP));
+
 		/* Must have keys loaded if doing encrypted non-raw recv. */
 		if (encrypted && !raw) {
 			if (spa_keystore_lookup_key(dp->dp_spa, ds->ds_object,
@@ -651,6 +680,18 @@ recv_begin_check_feature_flags_impl(uint64_t featureflags, spa_t *spa)
 	if ((featureflags & DMU_BACKUP_FEATURE_LONGNAME) &&
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_LONGNAME))
 		return (SET_ERROR(ENOTSUP));
+
+	if ((featureflags & DMU_BACKUP_FEATURE_CLONES) &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_BLOCK_CLONING))
+		return (SET_ERROR(ENOTSUP));
+#ifdef _KERNEL
+	if ((featureflags & DMU_BACKUP_FEATURE_CLONES) &&
+	    !zfs_bclone_enabled)
+		return (SET_ERROR(ENOTSUP));
+#endif
+	if ((featureflags & DMU_BACKUP_FEATURE_CLONES) &&
+	    (featureflags & DMU_BACKUP_FEATURE_RAW))
+		return (SET_ERROR(EINVAL));
 
 	return (0);
 }
@@ -2238,6 +2279,59 @@ recv_check_drr_free(const struct drr_free *drrf, char *errbuf, size_t errbuflen)
 	return (0);
 }
 
+int
+recv_check_drr_clone(const struct drr_clone *drrc, char *errbuf,
+    size_t errbuflen)
+{
+	int err = recv_check_drr_object_id(drrc->drr_object, errbuf,
+	    errbuflen);
+
+	if (err != 0)
+		return (err);
+	err = recv_check_drr_object_id(drrc->drr_refobject, errbuf,
+	    errbuflen);
+	if (err != 0)
+		return (err);
+
+	if (drrc->drr_length < SPA_MINBLOCKSIZE ||
+	    drrc->drr_length > SPA_MAXBLOCKSIZE ||
+	    !IS_P2ALIGNED(drrc->drr_length, SPA_MINBLOCKSIZE)) {
+		return (recv_check_fail(EINVAL, errbuf, errbuflen,
+		    "DRR_CLONE length %llu is not a block size",
+		    (u_longlong_t)drrc->drr_length));
+	}
+	if (ISP2(drrc->drr_length) ?
+	    (!IS_P2ALIGNED(drrc->drr_offset, drrc->drr_length) ||
+	    !IS_P2ALIGNED(drrc->drr_refoffset, drrc->drr_length)) :
+	    (drrc->drr_offset != 0 || drrc->drr_refoffset != 0)) {
+		return (recv_check_fail(EINVAL, errbuf, errbuflen,
+		    "DRR_CLONE offsets %llu/%llu not aligned to %llu",
+		    (u_longlong_t)drrc->drr_offset,
+		    (u_longlong_t)drrc->drr_refoffset,
+		    (u_longlong_t)drrc->drr_length));
+	}
+	if (recv_u64_add_overflow(drrc->drr_offset,
+	    drrc->drr_length) ||
+	    recv_u64_add_overflow(drrc->drr_refoffset,
+	    drrc->drr_length)) {
+		return (recv_check_fail(EINVAL, errbuf, errbuflen,
+		    "DRR_CLONE offset + length overflows"));
+	}
+	if (drrc->drr_refguid == 0) {
+		return (recv_check_fail(EINVAL, errbuf, errbuflen,
+		    "DRR_CLONE refguid is zero"));
+	}
+	if (drrc->drr_refguid == drrc->drr_toguid &&
+	    (drrc->drr_refobject > drrc->drr_object ||
+	    (drrc->drr_refobject == drrc->drr_object &&
+	    drrc->drr_refoffset >= drrc->drr_offset))) {
+		return (recv_check_fail(EINVAL, errbuf, errbuflen,
+		    "DRR_CLONE refers to itself or a later block"));
+	}
+
+	return (0);
+}
+
 /*
  * Validate a DRR_FREEOBJECTS record before processing the object loop.
  */
@@ -3003,6 +3097,19 @@ receive_defer_check(struct receive_writer_arg *rwa,
 	case DRR_REDACT:
 		first = last = rrd->header.drr_u.drr_redact.drr_object;
 		break;
+	case DRR_CLONE:
+	{
+		struct drr_clone *drrc = &rrd->header.drr_u.drr_clone;
+		uint64_t ref = drrc->drr_refobject;
+
+		if (drrc->drr_refguid == rwa->toguid &&
+		    receive_defer_overlaps(rwa, ref, ref)) {
+			receive_defer_park(rwa, rrd, ref);
+			return (EAGAIN);
+		}
+		first = last = drrc->drr_object;
+		break;
+	}
 	case DRR_FREEOBJECTS:
 	{
 		struct drr_freeobjects *drrfo =
@@ -3680,6 +3787,17 @@ flush_write_batch_impl(struct receive_writer_arg *rwa)
 		dnode_rele(dn, FTAG);
 		return (err);
 	}
+	uint64_t txg = dmu_tx_get_txg(tx);
+	receive_write_txg_t *rwt = &rwa->write_txgs[txg & TXG_MASK];
+
+	if (rwt->rwt_txg != txg ||
+	    first_drrw->drr_object < rwt->rwt_object ||
+	    (first_drrw->drr_object == rwt->rwt_object &&
+	    first_drrw->drr_offset < rwt->rwt_offset)) {
+		rwt->rwt_txg = txg;
+		rwt->rwt_object = first_drrw->drr_object;
+		rwt->rwt_offset = first_drrw->drr_offset;
+	}
 
 	struct receive_record_arg *rrd;
 	while ((rrd = list_head(&rwa->write_batch)) != NULL) {
@@ -4156,6 +4274,154 @@ receive_redact(struct receive_writer_arg *rwa, struct drr_redact *drrr)
 	return (receive_free(rwa, &drrf));
 }
 
+static int
+receive_clone_dnode_check(const dnode_t *dn, uint64_t length)
+{
+	if (dn->dn_type != DMU_OT_PLAIN_FILE_CONTENTS &&
+	    dn->dn_type != DMU_OT_ZVOL)
+		return (SET_ERROR(EINVAL));
+	if (dn->dn_datablksz != length)
+		return (SET_ERROR(ZFS_ERR_STREAM_CLONE_BLOCK_SIZE));
+	return (0);
+}
+
+/*
+ * The newest unsynced txg whose writes start at or before the block
+ * that drrc references, or 0 if there is none.
+ */
+static uint64_t
+receive_clone_write_txg(const struct receive_writer_arg *rwa,
+    const struct drr_clone *drrc, uint64_t synced)
+{
+	uint64_t txg = 0;
+
+	for (int t = 0; t < TXG_SIZE; t++) {
+		const receive_write_txg_t *rwt = &rwa->write_txgs[t];
+
+		if (rwt->rwt_txg <= MAX(synced, txg))
+			continue;
+		if (drrc->drr_refobject > rwt->rwt_object ||
+		    (drrc->drr_refobject == rwt->rwt_object &&
+		    drrc->drr_refoffset >= rwt->rwt_offset))
+			txg = rwt->rwt_txg;
+	}
+	return (txg);
+}
+
+/*
+ * Clone a block the receiver already has, from earlier in this stream
+ * or from the from-snapshot, into place through the BRT.  A reference
+ * that does not resolve fails the receive.
+ */
+static int
+receive_clone(struct receive_writer_arg *rwa, struct drr_clone *drrc)
+{
+	dsl_pool_t *dp = dmu_objset_pool(rwa->os);
+	spa_t *spa = dmu_objset_spa(rwa->os);
+	objset_t *refos;
+	dnode_t *dn;
+	dmu_tx_t *tx;
+	blkptr_t bp;
+	size_t nbps;
+	uint64_t synced;
+	int err;
+
+	if (drrc->drr_refguid == rwa->toguid) {
+		refos = rwa->os;
+	} else if (drrc->drr_refguid == rwa->fromguid &&
+	    rwa->fromos != NULL) {
+		refos = rwa->fromos;
+	} else {
+		return (SET_ERROR(EINVAL));
+	}
+
+	/*
+	 * Records arrive in (object, offset) order, and a reference
+	 * into this stream must point at an earlier block.
+	 */
+	if (drrc->drr_object < rwa->last_object ||
+	    (drrc->drr_object == rwa->last_object &&
+	    drrc->drr_offset <= rwa->last_offset))
+		return (SET_ERROR(EINVAL));
+	if (refos == rwa->os &&
+	    (drrc->drr_refobject > drrc->drr_object ||
+	    (drrc->drr_refobject == drrc->drr_object &&
+	    drrc->drr_refoffset >= drrc->drr_offset)))
+		return (SET_ERROR(EINVAL));
+
+	/*
+	 * Both objects must hold the block in one piece: the receiver
+	 * may have stored either at a different block size.
+	 */
+	if (dnode_hold(refos, drrc->drr_refobject, FTAG, &dn) != 0)
+		return (SET_ERROR(EINVAL));
+	err = receive_clone_dnode_check(dn, drrc->drr_length);
+	dnode_rele(dn, FTAG);
+	if (err != 0)
+		return (err);
+	if (dnode_hold(rwa->os, drrc->drr_object, FTAG, &dn) != 0)
+		return (SET_ERROR(EINVAL));
+	err = receive_clone_dnode_check(dn, drrc->drr_length);
+	if (err != 0) {
+		dnode_rele(dn, FTAG);
+		return (err);
+	}
+	if (drrc->drr_object > rwa->max_object)
+		rwa->max_object = drrc->drr_object;
+
+	/*
+	 * A received write reaches its parent's block pointer only at
+	 * sync; until then the block reads as what it replaced.
+	 */
+	if (refos == rwa->os) {
+		uint64_t wait;
+
+		synced = spa_last_synced_txg(spa);
+		wait = receive_clone_write_txg(rwa, drrc, synced);
+		if (wait > synced)
+			txg_wait_synced(dp, wait);
+	}
+	for (;;) {
+		nbps = 1;
+		synced = spa_last_synced_txg(spa);
+		err = dmu_read_l0_bps(refos, drrc->drr_refobject,
+		    drrc->drr_refoffset, drrc->drr_length, &bp,
+		    &nbps);
+		if (err != EAGAIN || refos != rwa->os)
+			break;
+		txg_wait_synced(dp, synced + 1);
+	}
+	if (err == EAGAIN || (err == 0 &&
+	    (nbps != 1 || BP_IS_REDACTED(&bp))))
+		err = SET_ERROR(EINVAL);
+	if (err != 0) {
+		dnode_rele(dn, FTAG);
+		return (err);
+	}
+
+	tx = dmu_tx_create(rwa->os);
+	dmu_tx_hold_clone_by_dnode(tx, dn, drrc->drr_offset,
+	    drrc->drr_length, drrc->drr_length);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (err != 0) {
+		dmu_tx_abort(tx);
+		dnode_rele(dn, FTAG);
+		return (err);
+	}
+	err = dmu_brt_clone(rwa->os, drrc->drr_object,
+	    drrc->drr_offset, drrc->drr_length, tx, &bp, 1);
+	if (err == 0) {
+		save_resume_state(rwa, drrc->drr_object,
+		    drrc->drr_offset, tx);
+		rwa->last_object = drrc->drr_object;
+		rwa->last_offset = drrc->drr_offset +
+		    drrc->drr_length - 1;
+	}
+	dmu_tx_commit(tx);
+	dnode_rele(dn, FTAG);
+	return (err);
+}
+
 /* used to destroy the drc_ds on error */
 static void
 dmu_recv_cleanup_ds(dmu_recv_cookie_t *drc)
@@ -4448,6 +4714,34 @@ receive_read_record(dmu_recv_cookie_t *drc)
 		err = receive_read_payload_and_next_header(drc, 0, NULL);
 		return (err);
 	}
+	case DRR_CLONE:
+	{
+		struct drr_clone *drrc =
+		    &drc->drc_rrd->header.drr_u.drr_clone;
+		int err;
+
+		if (!(drc->drc_featureflags &
+		    DMU_BACKUP_FEATURE_CLONES)) {
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    "DRR_CLONE in a stream without "
+			    "the clones feature");
+			recv_report_stream_error(drc->drc_errors,
+			    errbuf);
+			return (SET_ERROR(EINVAL));
+		}
+		err = recv_check_drr_clone(drrc, errbuf,
+		    sizeof (errbuf));
+		if (err != 0) {
+			recv_report_stream_error(drc->drc_errors,
+			    errbuf);
+			return (err);
+		}
+		receive_read_prefetch(drc, drrc->drr_object,
+		    drrc->drr_offset, drrc->drr_length);
+		err = receive_read_payload_and_next_header(drc, 0,
+		    NULL);
+		return (err);
+	}
 	case DRR_END:
 	{
 		struct drr_end *drre = &drc->drc_rrd->header.drr_u.drr_end;
@@ -4609,6 +4903,21 @@ dprintf_drr(struct receive_record_arg *rrd, int err)
 		    drror->drr_flags, err);
 		break;
 	}
+	case DRR_CLONE:
+	{
+		struct drr_clone *drrc = &rrd->header.drr_u.drr_clone;
+		dprintf("drr_type = CLONE obj = %llu offset = %llu "
+		    "length = %llu toguid = %llx refguid = %llx "
+		    "refobject = %llu refoffset = %llu err = %d\n",
+		    (u_longlong_t)drrc->drr_object,
+		    (u_longlong_t)drrc->drr_offset,
+		    (u_longlong_t)drrc->drr_length,
+		    (u_longlong_t)drrc->drr_toguid,
+		    (u_longlong_t)drrc->drr_refguid,
+		    (u_longlong_t)drrc->drr_refobject,
+		    (u_longlong_t)drrc->drr_refoffset, err);
+		break;
+	}
 	default:
 		return;
 	}
@@ -4756,6 +5065,12 @@ receive_process_record(struct receive_writer_arg *rwa,
 	{
 		struct drr_redact *drrr = &rrd->header.drr_u.drr_redact;
 		err = receive_redact(rwa, drrr);
+		break;
+	}
+	case DRR_CLONE:
+	{
+		struct drr_clone *drrc = &rrd->header.drr_u.drr_clone;
+		err = receive_clone(rwa, drrc);
 		break;
 	}
 	default:
@@ -4956,6 +5271,37 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	 */
 	drc->drc_should_save = B_TRUE;
 
+	/*
+	 * The from-snapshot is the received dataset's previous
+	 * snapshot: the last snapshot of an existing dataset, or the
+	 * origin of one this receive creates.  Hold it for the
+	 * DRR_CLONE records that reference it.
+	 */
+	if ((drc->drc_featureflags & DMU_BACKUP_FEATURE_CLONES) &&
+	    drc->drc_ds->ds_prev != NULL &&
+	    dsl_dataset_phys(drc->drc_ds->ds_prev)->ds_guid ==
+	    drc->drc_drr_begin->drr_u.drr_begin.drr_fromguid) {
+		dsl_pool_t *dp = dmu_objset_pool(drc->drc_os);
+		uint64_t prevobj = drc->drc_ds->ds_prev->ds_object;
+		dsl_dataset_t *fds;
+
+		dsl_pool_config_enter(dp, FTAG);
+		err = dsl_dataset_hold_obj(dp, prevobj, FTAG, &fds);
+		if (err == 0) {
+			dsl_dataset_long_hold(fds, FTAG);
+			err = dmu_objset_from_ds(fds, &rwa->fromos);
+			if (err != 0) {
+				dsl_dataset_long_rele(fds, FTAG);
+				dsl_dataset_rele(fds, FTAG);
+			} else {
+				rwa->fromds = fds;
+			}
+		}
+		dsl_pool_config_exit(dp, FTAG);
+		if (err != 0)
+			goto out;
+	}
+
 	(void) bqueue_init(&rwa->q, zfs_recv_queue_ff,
 	    MAX(zfs_recv_queue_length, 2 * zfs_max_recordsize),
 	    offsetof(struct receive_record_arg, node));
@@ -4970,6 +5316,9 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	rwa->spill = drc->drc_spill;
 	rwa->featureflags = drc->drc_featureflags;
 	rwa->full = (drc->drc_drr_begin->drr_u.drr_begin.drr_fromguid == 0);
+	rwa->toguid = drc->drc_drr_begin->drr_u.drr_begin.drr_toguid;
+	rwa->fromguid =
+	    drc->drc_drr_begin->drr_u.drr_begin.drr_fromguid;
 	rwa->os->os_raw_receive = drc->drc_raw;
 	if (drc->drc_heal) {
 		rwa->heal_pio = zio_root(drc->drc_os->os_spa, NULL, NULL,
@@ -5068,6 +5417,12 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	cv_destroy(&rwa->cv);
 	mutex_destroy(&rwa->mutex);
 	bqueue_destroy(&rwa->q);
+	if (rwa->fromds != NULL) {
+		dsl_dataset_long_rele(rwa->fromds, FTAG);
+		dsl_dataset_rele(rwa->fromds, FTAG);
+		rwa->fromds = NULL;
+		rwa->fromos = NULL;
+	}
 	list_destroy(&rwa->write_batch);
 	list_destroy(&rwa->defer_records);
 	avl_destroy(&rwa->defer_ranges);

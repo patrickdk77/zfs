@@ -1572,6 +1572,10 @@ Enables access to the block cloning feature.
 If this setting is 0, then even if feature@block_cloning is enabled,
 using functions and system calls that attempt to clone blocks will act as
 though the feature is disabled.
+While it is 0,
+.Nm zfs Cm receive
+also refuses streams made with
+.Nm zfs Cm send Fl k .
 .
 .It Sy zfs_bclone_strict_properties Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Restricts block cloning between datasets with different properties

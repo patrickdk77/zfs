@@ -168,6 +168,16 @@ byteswap_record(dmu_replay_record_t *drr, uint32_t drr_type)
 		DO64(drr_redact.drr_toguid);
 		break;
 
+	case DRR_CLONE:
+		DO64(drr_clone.drr_object);
+		DO64(drr_clone.drr_offset);
+		DO64(drr_clone.drr_length);
+		DO64(drr_clone.drr_toguid);
+		DO64(drr_clone.drr_refguid);
+		DO64(drr_clone.drr_refobject);
+		DO64(drr_clone.drr_refoffset);
+		break;
+
 	default:
 		errx(1, "unknown record type %llu, aborting...",
 		    (u_longlong_t)drr_type);

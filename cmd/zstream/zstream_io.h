@@ -46,6 +46,7 @@ extern "C" {
 #define	DROP_WRITE_EMBEDDED	(UINT32_C(1) << DRR_WRITE_EMBEDDED)
 #define	DROP_OBJECT_RANGE	(UINT32_C(1) << DRR_OBJECT_RANGE)
 #define	DROP_REDACT		(UINT32_C(1) << DRR_REDACT)
+#define	DROP_CLONE		(UINT32_C(1) << DRR_CLONE)
 
 /*
  * The stream offset is the offset within the original source stream.

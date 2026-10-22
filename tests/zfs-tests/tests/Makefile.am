@@ -2254,6 +2254,24 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send-c_verify_ratio.ksh \
 	functional/rsend/send-c_volume.ksh \
 	functional/rsend/send-cpL_varied_recsize.ksh \
+	functional/rsend/send_clone_refs_dryrun.ksh \
+	functional/rsend/send_clone_refs_encrypted.ksh \
+	functional/rsend/send_clone_refs_holes.ksh \
+	functional/rsend/send_clone_refs_incremental.ksh \
+	functional/rsend/send_clone_refs_intra.ksh \
+	functional/rsend/send_clone_refs_largeblock.ksh \
+	functional/rsend/send_clone_refs_noclones.ksh \
+	functional/rsend/send_clone_refs_noflag_neg.ksh \
+	functional/rsend/send_clone_refs_origin.ksh \
+	functional/rsend/send_clone_refs_overwrite.ksh \
+	functional/rsend/send_clone_refs_raw_neg.ksh \
+	functional/rsend/send_clone_refs_realloc.ksh \
+	functional/rsend/send_clone_refs_recv_nofeature_neg.ksh \
+	functional/rsend/send_clone_refs_resume.ksh \
+	functional/rsend/send_clone_refs_rewrite.py \
+	functional/rsend/send_clone_refs_saved_neg.ksh \
+	functional/rsend/send_clone_refs_selfref_neg.ksh \
+	functional/rsend/send_clone_refs_small.ksh \
 	functional/rsend/send_doall.ksh \
 	functional/rsend/send_embedded_large_block.ksh \
 	functional/rsend/send_embedded_spill_block.ksh \
@@ -2575,6 +2593,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zstream/zstream_recompress_004_pos.ksh \
 	functional/zstream/zstream_recompress_005_pos.ksh \
 	functional/zstream/zstream_redup_001_pos.ksh \
+	functional/zstream/zstream_selftest_records_001_pos.ksh \
 	functional/zstream/zstream_validate_001_neg.ksh \
 	functional/zstream/zstream_validate_002_neg.ksh \
 	functional/zstream/zstream_selftest_queue_001_pos.ksh \
