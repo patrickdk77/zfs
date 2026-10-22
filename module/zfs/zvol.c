@@ -342,7 +342,9 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	if (readonly)
 		return (SET_ERROR(EROFS));
 
-	zvol_state_t *zv = zvol_find_by_name(name, RW_READER);
+	zvol_state_t *zv;
+retry:
+	zv = zvol_find_by_name(name, RW_READER);
 
 	ASSERT(zv == NULL || (MUTEX_HELD(&zv->zv_state_lock) &&
 	    RW_READ_HELD(&zv->zv_suspend_lock)));
@@ -360,6 +362,10 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 		if (error != 0) {
 			if (zv != NULL)
 				mutex_exit(&zv->zv_state_lock);
+			if (error == ERESTART) {
+				delay(MSEC_TO_TICK(10));
+				goto retry;
+			}
 			return (error);
 		}
 		owned = B_TRUE;
@@ -1281,8 +1287,10 @@ zvol_first_open(zvol_state_t *zv, boolean_t readonly)
 
 	boolean_t ro = (readonly || (strchr(zv->zv_name, '@') != NULL));
 	/*
-	 * Waiting here for the clonedup apply would hold the locks
-	 * above, and every pool open waits for spa_namespace_lock.
+	 * Waiting here for the clonedup apply to let go of the volume
+	 * would hold the locks above, and every pool open waits for
+	 * spa_namespace_lock.  ERESTART sends the caller round its
+	 * retry with them dropped.
 	 */
 	error = dmu_objset_own_nowait(zv->zv_name, DMU_OST_ZVOL, ro,
 	    B_TRUE, zv, &os);
