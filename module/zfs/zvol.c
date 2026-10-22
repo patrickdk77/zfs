@@ -348,10 +348,16 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	    RW_READ_HELD(&zv->zv_suspend_lock)));
 
 	if (zv == NULL || zv->zv_objset == NULL) {
-		if (zv != NULL)
+		if (zv != NULL) {
 			rw_exit(&zv->zv_suspend_lock);
-		if ((error = dmu_objset_own(name, DMU_OST_ZVOL, B_FALSE, B_TRUE,
-		    FTAG, &os)) != 0) {
+			/* see zvol_first_open() */
+			error = dmu_objset_own_nowait(name,
+			    DMU_OST_ZVOL, B_FALSE, B_TRUE, FTAG, &os);
+		} else {
+			error = dmu_objset_own(name, DMU_OST_ZVOL,
+			    B_FALSE, B_TRUE, FTAG, &os);
+		}
+		if (error != 0) {
 			if (zv != NULL)
 				mutex_exit(&zv->zv_state_lock);
 			return (error);
@@ -1274,7 +1280,12 @@ zvol_first_open(zvol_state_t *zv, boolean_t readonly)
 		return (SET_ERROR(ENXIO));
 
 	boolean_t ro = (readonly || (strchr(zv->zv_name, '@') != NULL));
-	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, ro, B_TRUE, zv, &os);
+	/*
+	 * Waiting here for the clonedup apply would hold the locks
+	 * above, and every pool open waits for spa_namespace_lock.
+	 */
+	error = dmu_objset_own_nowait(zv->zv_name, DMU_OST_ZVOL, ro,
+	    B_TRUE, zv, &os);
 	if (error)
 		return (error);
 
