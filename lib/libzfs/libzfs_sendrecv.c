@@ -4440,6 +4440,87 @@ error:
 }
 
 /*
+ * Text for an errno that ended or skipped a pass.  ECKSUM, EIO and
+ * EINTR get the words zfs_common_error() gives them everywhere else.
+ */
+static const char *
+recv_clonedup_strerror(int error)
+{
+	switch (error) {
+	case EIO:
+		return ("I/O error");
+	case EINTR:
+		return ("signal received");
+	case ECKSUM:
+		return ("insufficient replicas");
+	default:
+		return (zfs_strerror(error));
+	}
+}
+
+/*
+ * A pass that was asked for and did not run, or did not finish, is
+ * reported with or without -v: the snapshot keeps every copy the
+ * pass did not clone.
+ */
+static void
+recv_clonedup_report(const char *name, uint64_t cloned,
+    uint64_t saved, int skipped, uint64_t reason, int error)
+{
+	const char *why;
+	char buf[32];
+
+	if (skipped == 0 && error != 0) {
+		why = error == ECANCELED ? "block cloning or the "
+		    "clonedup apply was switched off" :
+		    recv_clonedup_strerror(error);
+		zfs_nicebytes(saved, buf, sizeof (buf));
+		(void) fprintf(stderr, "Warning: clonedup pass on %s "
+		    "ended early after %llu blocks cloned, %s saved: "
+		    "%s\n", name, (u_longlong_t)cloned, buf, why);
+	}
+	if (skipped == 0)
+		return;
+	switch (reason) {
+	case ZFS_CLONEDUP_SKIP_BUSY:
+		why = "a clonedup run or another receive's pass is "
+		    "running";
+		break;
+	case ZFS_CLONEDUP_SKIP_RAW:
+		why = "the stream is raw";
+		break;
+	case ZFS_CLONEDUP_SKIP_HEAL:
+		why = "the receive is corrective";
+		break;
+	case ZFS_CLONEDUP_SKIP_ENCRYPTED:
+		why = "the dataset is encrypted";
+		break;
+	case ZFS_CLONEDUP_SKIP_OFF:
+		why = "the dataset has clonedup=off";
+		break;
+	case ZFS_CLONEDUP_SKIP_SOURCE:
+		why = "the dataset has clonedup=source";
+		break;
+	case ZFS_CLONEDUP_SKIP_FEATURE:
+		why = "the block_cloning feature is not enabled";
+		break;
+	case ZFS_CLONEDUP_SKIP_BCLONE:
+		why = "block cloning is disabled "
+		    "(zfs_bclone_enabled)";
+		break;
+	case ZFS_CLONEDUP_SKIP_APPLY:
+		why = "the clonedup apply is disabled "
+		    "(zfs_clonedup_apply_enabled)";
+		break;
+	default:
+		why = recv_clonedup_strerror(skipped);
+		break;
+	}
+	(void) fprintf(stderr, "Warning: clonedup pass skipped "
+	    "on %s: %s\n", name, why);
+}
+
+/*
  * Restores a backup of tosnap from the file descriptor specified by infd.
  */
 static int
@@ -4460,6 +4541,11 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	boolean_t newprops = B_FALSE;
 	uint64_t read_bytes = 0;
 	uint64_t errflags = 0;
+	uint64_t cd_cloned = 0;
+	uint64_t cd_saved = 0;
+	int cd_skipped = 0;
+	uint64_t cd_reason = 0;
+	int cd_error = 0;
 	uint64_t parent_snapguid = 0;
 	prop_changelist_t *clp = NULL;
 	nvlist_t *snapprops_nvlist = NULL;
@@ -4751,7 +4837,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	if (flags->heal) {
 		if (flags->isprefix || flags->istail || flags->force ||
 		    flags->canmountoff || flags->resumable || flags->nomount ||
-		    flags->skipholds) {
+		    flags->skipholds || flags->clonedup) {
 			zfs_error_aux(hdl,
 			    "corrective recv can not be used when combined with"
 			    " this flag");
@@ -5073,6 +5159,13 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		    oxprops, wkeydata, wkeylen, origin, flags->force,
 		    flags->heal, flags->resumable, raw, infd, drr_noswap, -1,
 		    &read_bytes, &errflags, NULL, &prop_errors);
+	} else if (flags->clonedup) {
+		err = ioctl_err = lzc_receive_with_clonedup(destsnap,
+		    rcvprops, oxprops, wkeydata, wkeylen, origin,
+		    flags->force, flags->resumable, raw, B_TRUE,
+		    flags->clonedup_match, infd, drr_noswap,
+		    &read_bytes, &errflags, &cd_cloned, &cd_saved,
+		    &cd_skipped, &cd_reason, &cd_error, &prop_errors);
 	} else {
 		err = ioctl_err = lzc_receive_with_cmdprops(destsnap, rcvprops,
 		    oxprops, wkeydata, wkeylen, origin, flags->force,
@@ -5414,6 +5507,11 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		goto out;
 	}
 
+	if (flags->clonedup) {
+		recv_clonedup_report(name, cd_cloned, cd_saved,
+		    cd_skipped, cd_reason, cd_error);
+	}
+
 	if (flags->verbose) {
 		char buf1[64];
 		char buf2[64];
@@ -5435,6 +5533,13 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 
 		(void) printf("received %s stream in %.2f seconds (%s/sec)\n",
 		    buf1, delta_f, buf2);
+		if (flags->clonedup && cd_skipped == 0 &&
+		    cd_error == 0) {
+			zfs_nicebytes(cd_saved, buf1, sizeof (buf1));
+			(void) printf("clonedup: %llu blocks cloned, "
+			    "%s saved\n", (u_longlong_t)cd_cloned,
+			    buf1);
+		}
 	}
 
 	err = 0;

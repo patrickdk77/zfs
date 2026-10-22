@@ -3177,7 +3177,8 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 	/*
 	 * A clonedup request goes to zpool_clonedup_busy(), which
 	 * names whichever of a clonedup, scrub, error scrub or
-	 * resilver is in the way.  With EBUSY on the other
+	 * resilver is in the way.  A receive's pass comes back as
+	 * ZFS_ERR_CLONEDUP_RECV_IN_PROGRESS.  With EBUSY on the other
 	 * requests, seven cases are possible:
 	 *
 	 * Current state		Requested

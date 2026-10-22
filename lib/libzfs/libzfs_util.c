@@ -784,6 +784,11 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		    "already sitting out");
 		zfs_verror(hdl, EZFS_BUSY, fmt, ap);
 		break;
+	case ZFS_ERR_CLONEDUP_RECV_IN_PROGRESS:
+		zfs_error_aux(hdl, "a 'zfs receive -k' or '-K' pass "
+		    "is running");
+		zfs_verror(hdl, EZFS_BUSY, fmt, ap);
+		break;
 	default:
 		zfs_error_aux(hdl, "%s", zfs_strerror(error));
 		zfs_verror(hdl, EZFS_UNKNOWN, fmt, ap);

@@ -20,7 +20,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd March 12, 2023
+.Dd October 17, 2026
 .Dt ZFS-RECEIVE 8
 .Os
 .
@@ -31,6 +31,7 @@
 .Nm zfs
 .Cm receive
 .Op Fl FhMnsuv
+.Op Fl k Ns | Ns Fl K
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
@@ -38,6 +39,7 @@
 .Nm zfs
 .Cm receive
 .Op Fl FhMnsuv
+.Op Fl k Ns | Ns Fl K
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -59,6 +61,7 @@
 .Nm zfs
 .Cm receive
 .Op Fl FhMnsuv
+.Op Fl k Ns | Ns Fl K
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
@@ -68,6 +71,7 @@
 .Nm zfs
 .Cm receive
 .Op Fl FhMnsuv
+.Op Fl k Ns | Ns Fl K
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -242,6 +246,81 @@ If receiving an incremental replication stream
 .Nm zfs Cm send Fl R Op Fl i Ns | Ns Fl I
 .Pc ,
 destroy snapshots and file systems that do not exist on the sending side.
+.It Fl k
+Clone the received blocks onto each other before the snapshot is taken.
+Where two or more blocks the stream wrote are identical, all but one become
+clones of it, so data the stream carries several times is stored once.
+The pass looks at nothing outside the stream, and writes nothing to the pool
+but the clones and the holes that replace all-zero blocks.
+Like a
+.Nm zpool Cm clonedup
+run, it leaves immutable files alone, and clones nothing into a file whose
+owner, group or project has reached its block quota.
+.It Fl K
+Like
+.Fl k ,
+but also compare the received blocks against every snapshot on the pool
+that is not encrypted and whose
+.Sy clonedup
+property is not
+.Sy off ,
+so a block that a snapshot on the receiving side already holds is stored as
+a clone of that copy.
+The walk passes over blocks it cannot read.
+Blocks that only a file system or volume holds, written since its last
+snapshot, are not compared, because they can change while the pass reads
+them.
+A backup pool needs this pass, because a
+.Nm zpool Cm clonedup
+run there finds no dataset changed since its latest snapshot and rewrites
+nothing.
+The pass reads the metadata of every such snapshot once for each partition of
+its index, so its cost grows with the snapshots on the pool, not with the size
+of the stream.
+That is one walk unless the received blocks outgrow the index memory cap.
+Each snapshot received gets a pass of its own, and no pass keeps what an
+earlier one read, so a stream from
+.Nm zfs Cm send Fl R
+or
+.Fl I
+that holds
+.Ar n
+snapshots makes at least
+.Ar n
+such walks.
+While the pass walks a snapshot, destroying that snapshot fails with EBUSY,
+as it does while a send reads it.
+The command returns only when the pass is done.
+Its walks read at normal priority and are not paced like a scrub.
+.Pp
+With either option, the pass is skipped for raw streams, for encrypted
+datasets, for datasets with
+.Sy clonedup Ns = Ns Sy off
+or
+.Sy source ,
+when the
+.Sy block_cloning
+feature is not enabled or
+.Sy zfs_bclone_enabled
+is 0, when
+.Sy zfs_clonedup_apply_enabled
+is 0, while a
+.Nm zpool Cm clonedup
+run is scanning or still applying, and while another receive's pass is
+running.
+A skipped pass prints a warning with the reason on standard error.
+A pass that stops early, because of a signal or an error, or because block
+cloning or the apply was switched off, prints a warning with the reason and
+what it had cloned and saved by then.
+In either case the receive itself completes.
+With
+.Fl v ,
+the receive also reports what a finished pass cloned and saved.
+A paused scrub does not stop the pass.
+The two options cannot be used together, and neither can be used with
+.Fl A
+or
+.Fl c .
 .It Fl d
 Discard the first element of the sent snapshot's file system name, using the
 remaining elements to determine the name of the target file system for the new

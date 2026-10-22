@@ -1654,8 +1654,22 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/clonedup/clonedup_readonly_pool.ksh \
 	functional/clonedup/clonedup_rebuild_scrub.ksh \
 	functional/clonedup/clonedup_receiving_skipped.ksh \
+	functional/clonedup/clonedup_recv.ksh \
+	functional/clonedup/clonedup_recv_apply_cache.ksh \
+	functional/clonedup/clonedup_recv_churn.ksh \
 	functional/clonedup/clonedup_recv_during_apply.ksh \
+	functional/clonedup/clonedup_recv_ended_early.ksh \
 	functional/clonedup/clonedup_recv_force_swap.ksh \
+	functional/clonedup/clonedup_recv_interrupt.ksh \
+	functional/clonedup/clonedup_recv_partitions.ksh \
+	functional/clonedup/clonedup_recv_policy.ksh \
+	functional/clonedup/clonedup_recv_scan_ebusy.ksh \
+	functional/clonedup/clonedup_recv_scrub.ksh \
+	functional/clonedup/clonedup_recv_skips.ksh \
+	functional/clonedup/clonedup_recv_snaponly.ksh \
+	functional/clonedup/clonedup_recv_status.ksh \
+	functional/clonedup/clonedup_recv_yield.ksh \
+	functional/clonedup/clonedup_recv_zero.ksh \
 	functional/clonedup/clonedup_removing_vdev.ksh \
 	functional/clonedup/clonedup_replace_during_apply.ksh \
 	functional/clonedup/clonedup_resilver_cancels.ksh \

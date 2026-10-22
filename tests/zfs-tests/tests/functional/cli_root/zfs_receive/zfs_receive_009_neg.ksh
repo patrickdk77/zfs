@@ -53,7 +53,8 @@ log_assert "Verify 'zfs receive' fails with bad option, missing or too many argu
 log_onexit cleanup
 
 set -A badopts "v" "n" "F" "d" "-V" "-N" "-f" "-D" "-VNfD" "-vNFd" "-vnFD" "-dVnF" \
-		"-vvvNfd" "-blah" "-12345" "-?" "-*" "-%"
+		"-vvvNfd" "-blah" "-12345" "-?" "-*" "-%" \
+		"-kK" "-Kk" "-kc" "-Kc"
 set -A validopts "" "-v" "-n" "-F" "-vn" "-nF" "-vnF" "-vd" "-nd" "-Fd" "-vnFd"
 
 ctr1=$TESTPOOL/$TESTCTR1

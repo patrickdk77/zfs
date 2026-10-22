@@ -307,7 +307,7 @@ static const char *const dsl_clonedup_kstat_names[DCK_NUM] = {
 	"dst_mounted", "dst_zvol", "dst_owned", "batches",
 	"key_collisions", "cksum_collisions",
 	"mem_peak", "canceled_runs", "walk_resumes",
-	"count_walks", "filter_dropped", "filter_bytes",
+	"count_walks", "filter_dropped", "filter_bytes", "recv_runs",
 };
 
 #define	DCL_BUMP(dcl, id, n)	wmsum_add(&(dcl)->dcl_wsums[id], (n))
@@ -453,6 +453,8 @@ dsl_clonedup_init(dsl_pool_t *dp)
 	mutex_init(&dcl->dcl_yield_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dcl->dcl_yield_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&dcl->dcl_apply_cv, NULL, CV_DEFAULT, NULL);
+	mutex_init(&dcl->dcl_recv_vlock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&dcl->dcl_recv_vcv, NULL, CV_DEFAULT, NULL);
 	avl_create(&dcl->dcl_dry, dsl_clonedup_dry_compare,
 	    sizeof (dsl_clonedup_dry_t),
 	    offsetof(dsl_clonedup_dry_t, dcd_node));
@@ -485,6 +487,8 @@ dsl_clonedup_fini(dsl_pool_t *dp)
 	dsl_clonedup_unch_vacate(dcl);
 	avl_destroy(&dcl->dcl_unch);
 	dsl_clonedup_kstat_destroy(dcl);
+	cv_destroy(&dcl->dcl_recv_vcv);
+	mutex_destroy(&dcl->dcl_recv_vlock);
 	cv_destroy(&dcl->dcl_apply_cv);
 	cv_destroy(&dcl->dcl_yield_cv);
 	mutex_destroy(&dcl->dcl_yield_lock);
@@ -537,6 +541,8 @@ dsl_clonedup_sync_state(dsl_clonedup_t *dcl, dmu_tx_t *tx)
 	dsl_clonedup_phys_t *phys;
 	boolean_t moved;
 
+	if (dcl->dcl_recv_os != NULL)
+		return;
 	ASSERT(dmu_tx_is_syncing(tx));
 	/* most txgs of a run move nothing worth a write */
 	mutex_enter(&dcl->dcl_lock);
@@ -768,7 +774,9 @@ dsl_clonedup_index_create(dsl_clonedup_t *dcl)
 	dcl->dcl_take_birth = 0;
 	dcl->dcl_kept_birth = 0;
 	dcl->dcl_apply_shared = 0;
-	dcl->dcl_apply_total = 0;
+	/* status shows the last run's total during a receive */
+	if (dcl->dcl_recv_os == NULL)
+		dcl->dcl_apply_total = 0;
 	dcl->dcl_nentries = 0;
 	dcl->dcl_nsrc = 0;
 	dcl->dcl_nrepeat = 0;
@@ -1263,7 +1271,8 @@ dsl_clonedup_visit(dsl_clonedup_t *dcl, const blkptr_t *bp,
 				    flags);
 			break;
 		case POOL_CLONEDUP_MATCH:
-			if (birth <= p->dclp_min_txg)
+			if (dcl->dcl_recv_os != NULL ||
+			    birth <= p->dclp_min_txg)
 				dsl_clonedup_match(dcl, bp, zb, dnp,
 				    flags);
 			break;
@@ -1427,10 +1436,10 @@ dsl_clonedup_filter_prepare(dsl_pool_t *dp, uint64_t flags)
 	*saved = dcl->dcl_phys;
 	mutex_exit(&dcl->dcl_lock);
 	/*
-	 * dsl_scan() calls here only while no scan runs.  A run that
-	 * started since holds memory under the same cap, and a filter
-	 * allocated here would sit on top of it, so this run goes
-	 * without one.
+	 * dsl_scan() calls here only when no scan and no receive
+	 * pass runs.  One that started since holds memory under the
+	 * same cap, and a filter allocated here would sit on top of
+	 * it, so this run goes without one.
 	 */
 	if (saved->dclp_state != DSS_SCANNING &&
 	    dsl_clonedup_filter_plan(dcl, saved, min_txg, &n, &pct))
@@ -1872,6 +1881,7 @@ dsl_clonedup_dscache_init(dsl_clonedup_worker_t *w)
 	    offsetof(dsl_clonedup_dscache_t, dc_node));
 	w->dcw_dscache_txg = 0;
 	w->dcw_dscache_ready = B_TRUE;
+	w->dcw_dscache_owner = curthread;
 }
 
 static void
@@ -1882,6 +1892,7 @@ dsl_clonedup_dscache_fini(dsl_clonedup_worker_t *w)
 	dsl_clonedup_dscache_vacate(w);
 	avl_destroy(&w->dcw_dscache);
 	w->dcw_dscache_ready = B_FALSE;
+	w->dcw_dscache_owner = NULL;
 }
 
 /* Does the live bp still name the block the index recorded? */
@@ -1954,6 +1965,21 @@ dsl_clonedup_verify_done(zio_t *zio)
 	mutex_exit(&spa->spa_scrub_lock);
 }
 
+/* The same for the reads of a receive's pass. */
+static void
+dsl_clonedup_recv_verify_done(zio_t *zio)
+{
+	dsl_clonedup_t *dcl = spa_get_dsl(zio->io_spa)->dp_clonedup;
+	int *errp = zio->io_private;
+
+	*errp = zio->io_error;
+	mutex_enter(&dcl->dcl_recv_vlock);
+	ASSERT3U(dcl->dcl_recv_inflight, >=, zio->io_lsize);
+	dcl->dcl_recv_inflight -= zio->io_lsize;
+	cv_broadcast(&dcl->dcl_recv_vcv);
+	mutex_exit(&dcl->dcl_recv_vlock);
+}
+
 /* The reads of one verify pass, issued under one parent zio. */
 typedef struct dsl_clonedup_pass {
 	zio_t		*dp_pio;
@@ -1972,21 +1998,36 @@ dsl_clonedup_verify_read(dsl_clonedup_t *dcl, zio_t *pio,
 	spa_t *spa = dcl->dcl_dp->dp_spa;
 	uint64_t size = BP_GET_PSIZE(bp);
 	zbookmark_phys_t zb;
+	zio_done_func_t *done = dsl_clonedup_verify_done;
+	kmutex_t *lock = &spa->spa_scrub_lock;
+	kcondvar_t *cv = &spa->spa_scrub_io_cv;
+	uint64_t *inflight = &spa->spa_scrub_inflight;
 
-	mutex_enter(&spa->spa_scrub_lock);
-	while (spa->spa_scrub_inflight >= limit)
-		cv_wait(&spa->spa_scrub_io_cv, &spa->spa_scrub_lock);
-	spa->spa_scrub_inflight += size;
-	mutex_exit(&spa->spa_scrub_lock);
+	/*
+	 * A scan that finishes asserts that none of its reads are
+	 * out, and a receive's pass can run beside a scrub or a
+	 * resilver, so the pass keeps its own count.  The budget is
+	 * the same.
+	 */
+	if (dcl->dcl_recv_os != NULL) {
+		done = dsl_clonedup_recv_verify_done;
+		lock = &dcl->dcl_recv_vlock;
+		cv = &dcl->dcl_recv_vcv;
+		inflight = &dcl->dcl_recv_inflight;
+	}
+	mutex_enter(lock);
+	while (*inflight >= limit)
+		cv_wait(cv, lock);
+	*inflight += size;
+	mutex_exit(lock);
 
 	*abdp = abd_alloc_for_io(size, B_FALSE);
 	*errp = 0;
 	DCL_BUMP(dcl, DCK_VERIFY_READS, 1);
 	DCL_BUMP(dcl, DCK_VERIFY_BYTES, size);
 	SET_BOOKMARK(&zb, dsobj, object, 0, blkid);
-	zio_nowait(zio_read(pio, spa, bp, *abdp, size,
-	    dsl_clonedup_verify_done, errp, ZIO_PRIORITY_SCRUB, zf,
-	    &zb));
+	zio_nowait(zio_read(pio, spa, bp, *abdp, size, done, errp,
+	    ZIO_PRIORITY_SCRUB, zf, &zb));
 }
 
 /*
@@ -2297,6 +2338,7 @@ dsl_clonedup_ds_info(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 
 	if (!w->dcw_dscache_ready)
 		return (dsl_clonedup_ds_info_read(dp, dsobj, di));
+	ASSERT3P(w->dcw_dscache_owner, ==, curthread);
 
 	if (w->dcw_dscache_txg != txg) {
 		dsl_clonedup_dscache_vacate(w);
@@ -2360,6 +2402,10 @@ dsl_clonedup_stop(dsl_clonedup_t *dcl, zthr_t *zthr)
 {
 	if (atomic_load_32(&dcl->dcl_apply_stop))
 		return (B_TRUE);
+	if (zthr == NULL && issig()) {
+		atomic_store_32(&dcl->dcl_apply_stop, B_TRUE);
+		return (B_TRUE);
+	}
 	if (zthr == NULL || !zthr_iscurthread(zthr) ||
 	    !zthr_iscancelled(zthr))
 		return (B_FALSE);
@@ -2381,10 +2427,13 @@ dsl_clonedup_hold_begin(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 
 	mutex_enter(&dcl->dcl_yield_lock);
 	while (dsl_clonedup_yield_pending(dcl)) {
-		if (dsl_clonedup_stop(dcl, dcl->dcl_zthr)) {
-			mutex_exit(&dcl->dcl_yield_lock);
+		/* issig() can stop this thread, so drop the lock */
+		mutex_exit(&dcl->dcl_yield_lock);
+		if (dsl_clonedup_stop(dcl, dcl->dcl_zthr))
 			return (SET_ERROR(EINTR));
-		}
+		mutex_enter(&dcl->dcl_yield_lock);
+		if (!dsl_clonedup_yield_pending(dcl))
+			break;
 		if (w->dcw_held_src != 0 ||
 		    w->dcw_held_dst != 0) {
 			mutex_exit(&dcl->dcl_yield_lock);
@@ -2876,6 +2925,10 @@ dsl_clonedup_dst_hold(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 	for (tries = 0; ; tries++) {
 		if (b->dcb_ndst > 0) {
 			err = zfs_clonedup_dst_share(b->dcb_dsts[0],
+			    object, &w->dcw_dst);
+		} else if (dcl->dcl_recv_os != NULL &&
+		    dsobj == dcl->dcl_recv_dsobj) {
+			err = zfs_clonedup_dst_wrap(dcl->dcl_recv_os,
 			    object, &w->dcw_dst);
 		} else {
 			err = zfs_clonedup_dst_open(
@@ -3583,8 +3636,9 @@ dsl_clonedup_punch_one(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 		st->s_stale++;
 		return;
 	}
-	if (di.di_snapshot || di.di_inconsistent ||
-	    di.di_mode != ZFS_CLONEDUP_ON) {
+	if (di.di_snapshot || di.di_mode != ZFS_CLONEDUP_ON ||
+	    (di.di_inconsistent &&
+	    sl->l_objset != dcl->dcl_recv_dsobj)) {
 		st->s_policy++;
 		return;
 	}
@@ -4608,7 +4662,8 @@ redo:
 			}
 		}
 		if (di.di_snapshot || di.di_mode != ZFS_CLONEDUP_ON ||
-		    di.di_inconsistent) {
+		    (di.di_inconsistent &&
+		    dsobj != dcl->dcl_recv_dsobj)) {
 			st.s_policy++;
 			continue;
 		}
@@ -4877,7 +4932,7 @@ dsl_clonedup_order_index(dsl_clonedup_t *dcl,
 	buf = kmem_alloc(bufmax * sizeof (*buf), KM_SLEEP);
 	/* the pass sets the total when it is done */
 	mutex_enter(&dcl->dcl_lock);
-	if (w->dcw_gen == dcl->dcl_gen)
+	if (w->dcw_gen == dcl->dcl_gen && dcl->dcl_recv_os == NULL)
 		dcl->dcl_apply_total = 0;
 	mutex_exit(&dcl->dcl_lock);
 	while (!dsl_clonedup_stop(dcl, zthr) &&
@@ -4903,7 +4958,7 @@ dsl_clonedup_order_index(dsl_clonedup_t *dcl,
 		dcl->dcl_apply_ready = dcl->dcl_index_active &&
 		    avl_numnodes(&dcl->dcl_index) == 0;
 		/* only destinations are left, and none has applied */
-		if (dcl->dcl_apply_ready)
+		if (dcl->dcl_apply_ready && dcl->dcl_recv_os == NULL)
 			dcl->dcl_apply_total = dcl->dcl_nentries;
 		if (dcl->dcl_apply_ready &&
 		    dcl->dcl_apply_shared != 0) {
@@ -5205,7 +5260,9 @@ dsl_clonedup_apply_ordered(dsl_clonedup_t *dcl,
 	boolean_t taken;
 
 	while (!dsl_clonedup_stop(dcl, zthr)) {
-		if (dsl_scan_is_paused_scrub(dp->dp_scan) ||
+		/* a pause is the run's; a receive's pass has none */
+		if ((dcl->dcl_recv_os == NULL &&
+		    dsl_scan_is_paused_scrub(dp->dp_scan)) ||
 		    !zfs_clonedup_apply_enabled ||
 		    !zfs_clonedup_bclone_enabled())
 			break;
@@ -5282,7 +5339,12 @@ dsl_clonedup_apply_check(void *arg, zthr_t *zthr)
 		return (B_FALSE);
 
 	mutex_enter(&dcl->dcl_lock);
-	work = dcl->dcl_phys.dclp_state == DSS_SCANNING &&
+	/*
+	 * A receive drives the apply itself, on the same worker, so
+	 * the thread must stay out of it until dcl_recv_os is clear.
+	 */
+	work = dcl->dcl_recv_os == NULL &&
+	    dcl->dcl_phys.dclp_state == DSS_SCANNING &&
 	    dcl->dcl_phys.dclp_phase == POOL_CLONEDUP_APPLY &&
 	    dcl->dcl_index_active && (dcl->dcl_nentries > 0 ||
 	    !avl_is_empty(&dcl->dcl_punch));
@@ -5440,7 +5502,7 @@ dsl_clonedup_apply_thread(void *arg, zthr_t *zthr)
 	dsl_clonedup_t *dcl = dp->dp_clonedup;
 
 	mutex_enter(&dcl->dcl_lock);
-	if (!dcl->dcl_index_active ||
+	if (dcl->dcl_recv_os != NULL || !dcl->dcl_index_active ||
 	    dcl->dcl_phys.dclp_phase != POOL_CLONEDUP_APPLY) {
 		mutex_exit(&dcl->dcl_lock);
 		return;
@@ -5454,6 +5516,523 @@ dsl_clonedup_apply_thread(void *arg, zthr_t *zthr)
 	mutex_enter(&dcl->dcl_lock);
 	dcl->dcl_zthr = NULL;
 	mutex_exit(&dcl->dcl_lock);
+}
+
+/*
+ * The pass a receive runs between its last record and its snapshot.
+ * Only the blocks the receive wrote are indexed.  Without 'match'
+ * they are cloned onto each other alone; with it every block that a
+ * snapshot on the pool holds is a possible source too, whatever its
+ * birth.  The receive owns the dataset, so no handle is opened for
+ * it.  The pass runs before its receive asks the apply to yield,
+ * and lets go of what it holds when another operation asks, as a
+ * run's apply does.  The index walk reads the dataset's on-disk
+ * tree, which names the received blocks only once they have
+ * synced.  Nothing here reaches the disk but the clones and the
+ * holes of all-zero blocks: the pool-wide record is saved and put
+ * back, and status reports the saved copy until then.
+ */
+typedef struct dsl_clonedup_recv_arg {
+	dsl_clonedup_t		*ra_dcl;
+	/* the clonedup property of the snapshot being walked */
+	uint64_t		ra_mode;
+} dsl_clonedup_recv_arg_t;
+
+/*
+ * dsl_clonedup_bp_eligible() for the receive walks, which run in open
+ * context with no config lock held.
+ */
+static boolean_t
+dsl_clonedup_recv_eligible(spa_t *spa, const blkptr_t *bp,
+    const dnode_phys_t *dnp, const zbookmark_phys_t *zb,
+    uint8_t *flagsp)
+{
+	boolean_t ok;
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	ok = dsl_clonedup_bp_eligible(spa, bp, dnp, zb, flagsp);
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+	return (ok);
+}
+
+/*
+ * dsl_clonedup_wanted() for the receive walks, asked before the
+ * config lock and the BRT lookup.  The index walk visits only blocks
+ * born inside the window, and the match walk takes a source of any
+ * birth, so the partition is the one test left.  Only the pass's own
+ * thread changes it.
+ */
+static boolean_t
+dsl_clonedup_recv_wanted(dsl_clonedup_t *dcl, const blkptr_t *bp)
+{
+	dsl_clonedup_phys_t *p = &dcl->dcl_phys;
+
+	return (dsl_clonedup_partition_of(dsl_clonedup_bp_key(bp),
+	    p->dclp_partition_shift) == p->dclp_partition);
+}
+
+static int
+dsl_clonedup_recv_index_cb(spa_t *spa, zilog_t *zilog,
+    const blkptr_t *bp, const zbookmark_phys_t *zb,
+    const dnode_phys_t *dnp, void *arg)
+{
+	(void) zilog;
+	dsl_clonedup_recv_arg_t *ra = arg;
+	uint8_t flags = 0;
+
+	if (issig())
+		return (SET_ERROR(EINTR));
+	if (bp == NULL || !dsl_clonedup_recv_wanted(ra->ra_dcl, bp) ||
+	    !dsl_clonedup_recv_eligible(spa, bp, dnp, zb, &flags))
+		return (0);
+	if (brt_maybe_exists(spa, bp))
+		flags |= DCE_F_MAYBE_SHARED;
+	dsl_clonedup_visit(ra->ra_dcl, bp, zb, dnp, flags);
+	return (0);
+}
+
+static int
+dsl_clonedup_recv_match_cb(spa_t *spa, zilog_t *zilog,
+    const blkptr_t *bp, const zbookmark_phys_t *zb,
+    const dnode_phys_t *dnp, void *arg)
+{
+	(void) zilog;
+	dsl_clonedup_recv_arg_t *ra = arg;
+	dsl_clonedup_t *dcl = ra->ra_dcl;
+	uint8_t flags = DCE_F_SNAPHELD;
+
+	if (issig())
+		return (SET_ERROR(EINTR));
+	if (bp == NULL || zb->zb_objset == 0 ||
+	    !dsl_clonedup_recv_wanted(dcl, bp))
+		return (0);
+	if (!dsl_clonedup_recv_eligible(spa, bp, dnp, zb, &flags))
+		return (0);
+	if (ra->ra_mode == ZFS_CLONEDUP_SOURCE)
+		flags |= DCE_F_SRCONLY;
+	if (brt_maybe_exists(spa, bp))
+		flags |= DCE_F_MAYBE_SHARED;
+	dsl_clonedup_visit(dcl, bp, zb, dnp, flags);
+	return (0);
+}
+
+/* Dataset objects: the snapshots the match walk lists, or heads. */
+typedef struct dsl_clonedup_snaps {
+	uint64_t	*cs_objs;
+	uint64_t	cs_count;
+	uint64_t	cs_max;
+} dsl_clonedup_snaps_t;
+
+static void
+dsl_clonedup_snaps_add(dsl_clonedup_snaps_t *cs, uint64_t obj)
+{
+	uint64_t *objs;
+	uint64_t max;
+
+	if (cs->cs_count == cs->cs_max) {
+		max = MAX(cs->cs_max * 2, 64);
+		objs = vmem_alloc(max * sizeof (*objs), KM_SLEEP);
+		if (cs->cs_count > 0) {
+			memcpy(objs, cs->cs_objs,
+			    cs->cs_count * sizeof (*objs));
+			vmem_free(cs->cs_objs,
+			    cs->cs_max * sizeof (*objs));
+		}
+		cs->cs_objs = objs;
+		cs->cs_max = max;
+	}
+	cs->cs_objs[cs->cs_count++] = obj;
+}
+
+static void
+dsl_clonedup_snaps_free(dsl_clonedup_snaps_t *cs)
+{
+	if (cs->cs_objs != NULL)
+		vmem_free(cs->cs_objs,
+		    cs->cs_max * sizeof (*cs->cs_objs));
+	memset(cs, 0, sizeof (*cs));
+}
+
+/*
+ * List the pool's snapshots one head at a time, from a stack of head
+ * dataset objects.  The config lock is taken for one head and its
+ * child directories at a time, so a sync task waits for one step at
+ * most rather than for the whole namespace.  A head destroyed before
+ * its turn is passed over.
+ */
+static int
+dsl_clonedup_snaps_list(dsl_pool_t *dp, dsl_clonedup_snaps_t *cs)
+{
+	objset_t *mos = dp->dp_meta_objset;
+	zap_attribute_t *za = zap_attribute_alloc();
+	dsl_clonedup_snaps_t heads;
+	zap_cursor_t zc;
+	dsl_dataset_t *ds;
+	dsl_dir_t *dd;
+	uint64_t obj;
+	int err = 0;
+
+	memset(&heads, 0, sizeof (heads));
+	dsl_pool_config_enter(dp, FTAG);
+	dsl_clonedup_snaps_add(&heads,
+	    dsl_dir_phys(dp->dp_root_dir)->dd_head_dataset_obj);
+	dsl_pool_config_exit(dp, FTAG);
+	while (heads.cs_count > 0) {
+		if (issig()) {
+			err = SET_ERROR(EINTR);
+			break;
+		}
+		obj = heads.cs_objs[--heads.cs_count];
+		dsl_pool_config_enter(dp, FTAG);
+		err = dsl_dataset_hold_obj(dp, obj, FTAG, &ds);
+		if (err == 0 && ds->ds_is_snapshot) {
+			dsl_dataset_rele(ds, FTAG);
+			err = SET_ERROR(ENOENT);
+		}
+		if (err != 0) {
+			dsl_pool_config_exit(dp, FTAG);
+			if (err != ENOENT && err != EINVAL)
+				break;
+			err = 0;
+			continue;
+		}
+		for (zap_cursor_init(&zc, mos,
+		    dsl_dataset_phys(ds)->ds_snapnames_zapobj);
+		    zap_cursor_retrieve(&zc, za) == 0;
+		    (void) zap_cursor_advance(&zc))
+			dsl_clonedup_snaps_add(cs,
+			    za->za_first_integer);
+		zap_cursor_fini(&zc);
+		for (zap_cursor_init(&zc, mos,
+		    dsl_dir_phys(ds->ds_dir)->dd_child_dir_zapobj);
+		    zap_cursor_retrieve(&zc, za) == 0;
+		    (void) zap_cursor_advance(&zc)) {
+			/* $MOS, $FREE and $ORIGIN */
+			if (za->za_name[0] == '$')
+				continue;
+			if (dsl_dir_hold_obj(dp, za->za_first_integer,
+			    NULL, FTAG, &dd) != 0)
+				continue;
+			obj = dsl_dir_phys(dd)->dd_head_dataset_obj;
+			dsl_dir_rele(dd, FTAG);
+			if (obj != 0)
+				dsl_clonedup_snaps_add(&heads, obj);
+		}
+		zap_cursor_fini(&zc);
+		dsl_dataset_rele(ds, FTAG);
+		dsl_pool_config_exit(dp, FTAG);
+	}
+	dsl_clonedup_snaps_free(&heads);
+	zap_attribute_free(za);
+	return (err);
+}
+
+/*
+ * The match walk of a receive.  It walks snapshots alone: a head
+ * and the MOS change on disk under a walk made in open context, and
+ * a stale block pointer can name space that has been freed and
+ * reused.  Each snapshot listed is then held and long held, as a
+ * send holds its snapshot, so that it cannot be destroyed, and
+ * walked with no lock held.  A snapshot destroyed since the listing
+ * is passed over, and so is one that cannot hold a source: an
+ * encrypted one, or one with clonedup=off.  A block the walk cannot
+ * read is passed over too.  Each one is walked from the txg of the
+ * snapshot before it, so a block is visited in the earliest
+ * snapshot that holds it.
+ */
+static int
+dsl_clonedup_recv_match(dsl_clonedup_recv_arg_t *ra)
+{
+	dsl_pool_t *dp = ra->ra_dcl->dcl_dp;
+	dsl_clonedup_snaps_t cs;
+	dsl_dataset_t *ds;
+	uint64_t mode;
+	uint64_t txg;
+	uint64_t i;
+	int err;
+
+	memset(&cs, 0, sizeof (cs));
+	err = dsl_clonedup_snaps_list(dp, &cs);
+
+	for (i = 0; err == 0 && i < cs.cs_count; i++) {
+		if (issig()) {
+			err = SET_ERROR(EINTR);
+			break;
+		}
+		dsl_pool_config_enter(dp, FTAG);
+		err = dsl_dataset_hold_obj(dp, cs.cs_objs[i], FTAG,
+		    &ds);
+		if (err == 0 && !ds->ds_is_snapshot) {
+			dsl_dataset_rele(ds, FTAG);
+			err = SET_ERROR(ENOENT);
+		}
+		if (err != 0) {
+			dsl_pool_config_exit(dp, FTAG);
+			if (err != ENOENT && err != EINVAL)
+				break;
+			/*
+			 * Destroyed since the listing.  Its object
+			 * may hold another dataset or none by now.
+			 */
+			err = 0;
+			continue;
+		}
+		mode = ZFS_CLONEDUP_OFF;
+		(void) dsl_prop_get_int_ds(ds,
+		    zfs_prop_to_name(ZFS_PROP_CLONEDUP), &mode);
+		if (ds->ds_dir->dd_crypto_obj != 0 ||
+		    mode == ZFS_CLONEDUP_OFF) {
+			dsl_dataset_rele(ds, FTAG);
+			dsl_pool_config_exit(dp, FTAG);
+			continue;
+		}
+		dsl_dataset_long_hold(ds, FTAG);
+		txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
+		dsl_pool_config_exit(dp, FTAG);
+
+		ra->ra_mode = mode;
+		err = traverse_dataset(ds, txg,
+		    TRAVERSE_PRE | TRAVERSE_NO_DECRYPT |
+		    TRAVERSE_PREFETCH_METADATA | TRAVERSE_HARD,
+		    dsl_clonedup_recv_match_cb, ra);
+		dsl_dataset_long_rele(ds, FTAG);
+		dsl_dataset_rele(ds, FTAG);
+	}
+
+	dsl_clonedup_snaps_free(&cs);
+	return (err);
+}
+
+/* In syncing context, so a scan's setup cannot come in between. */
+static int
+dsl_clonedup_recv_claim_check(void *arg, dmu_tx_t *tx)
+{
+	(void) arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_clonedup_t *dcl = dp->dp_clonedup;
+	int err = 0;
+
+	if (dsl_scan_clonedup_scanning(dp))
+		return (SET_ERROR(EBUSY));
+	mutex_enter(&dcl->dcl_lock);
+	if (dcl->dcl_index_active || dcl->dcl_recv_os != NULL ||
+	    dcl->dcl_zthr != NULL)
+		err = SET_ERROR(EBUSY);
+	mutex_exit(&dcl->dcl_lock);
+	return (err);
+}
+
+static void
+dsl_clonedup_recv_claim_sync(void *arg, dmu_tx_t *tx)
+{
+	objset_t *os = arg;
+	dsl_clonedup_t *dcl = dmu_tx_pool(tx)->dp_clonedup;
+
+	mutex_enter(&dcl->dcl_lock);
+	dcl->dcl_recv_os = os;
+	dcl->dcl_recv_dsobj = dmu_objset_id(os);
+	mutex_exit(&dcl->dcl_lock);
+}
+
+boolean_t
+dsl_clonedup_recv_active(dsl_pool_t *dp)
+{
+	dsl_clonedup_t *dcl = dp->dp_clonedup;
+	boolean_t active;
+
+	if (dcl == NULL)
+		return (B_FALSE);
+	mutex_enter(&dcl->dcl_lock);
+	active = dcl->dcl_recv_os != NULL;
+	mutex_exit(&dcl->dcl_lock);
+	return (active);
+}
+
+/* Why the pass cannot run, or ZFS_CLONEDUP_SKIP_NONE. */
+static uint64_t
+dsl_clonedup_recv_skip(dsl_pool_t *dp, objset_t *os,
+    const dsl_clonedup_dsinfo_t *di)
+{
+	if (!spa_feature_is_enabled(dp->dp_spa,
+	    SPA_FEATURE_BLOCK_CLONING))
+		return (ZFS_CLONEDUP_SKIP_FEATURE);
+	if (!zfs_clonedup_bclone_enabled())
+		return (ZFS_CLONEDUP_SKIP_BCLONE);
+	if (!zfs_clonedup_apply_enabled)
+		return (ZFS_CLONEDUP_SKIP_APPLY);
+	if (os->os_encrypted)
+		return (ZFS_CLONEDUP_SKIP_ENCRYPTED);
+	if (di->di_mode == ZFS_CLONEDUP_OFF)
+		return (ZFS_CLONEDUP_SKIP_OFF);
+	/* the apply refuses every destination under source */
+	if (di->di_mode == ZFS_CLONEDUP_SOURCE)
+		return (ZFS_CLONEDUP_SKIP_SOURCE);
+	return (ZFS_CLONEDUP_SKIP_NONE);
+}
+
+/*
+ * *skipp says why the pass did not start, and is
+ * ZFS_CLONEDUP_SKIP_NONE once it has.  An error after that ended the
+ * pass early, and the counts are what it reached.
+ */
+int
+dsl_clonedup_recv(dsl_pool_t *dp, dsl_dataset_t *ds, boolean_t match,
+    uint64_t *clonedp, uint64_t *savedp, uint64_t *skipp)
+{
+	dsl_clonedup_t *dcl = dp->dp_clonedup;
+	spa_t *spa = dp->dp_spa;
+	dsl_clonedup_phys_t *saved;
+	dsl_clonedup_phys_t *p;
+	dsl_clonedup_recv_arg_t ra;
+	dsl_clonedup_dsinfo_t di;
+	dsl_clonedup_next_t next;
+	objset_t *os;
+	uint64_t min_txg;
+	uint64_t unused;
+	uint64_t part;
+	uint64_t txg;
+	int err;
+
+	*clonedp = 0;
+	*savedp = 0;
+	*skipp = ZFS_CLONEDUP_SKIP_ERROR;
+	if (dcl == NULL)
+		return (SET_ERROR(ENOTSUP));
+	dsl_pool_config_enter(dp, FTAG);
+	err = dmu_objset_from_ds(ds, &os);
+	dsl_pool_config_exit(dp, FTAG);
+	if (err == 0)
+		err = dsl_clonedup_ds_info_read(dp, ds->ds_object,
+		    &di);
+	if (err != 0)
+		return (err);
+	*skipp = dsl_clonedup_recv_skip(dp, os, &di);
+	if (*skipp != ZFS_CLONEDUP_SKIP_NONE)
+		return (SET_ERROR(ENOTSUP));
+	err = dsl_sync_task(spa_name(spa),
+	    dsl_clonedup_recv_claim_check,
+	    dsl_clonedup_recv_claim_sync, os, 0,
+	    ZFS_SPACE_CHECK_NONE);
+	if (err != 0) {
+		*skipp = err == EBUSY ? ZFS_CLONEDUP_SKIP_BUSY :
+		    ZFS_CLONEDUP_SKIP_ERROR;
+		return (err);
+	}
+	*skipp = ZFS_CLONEDUP_SKIP_NONE;
+
+	saved = kmem_alloc(sizeof (*saved), KM_SLEEP);
+	mutex_enter(&dcl->dcl_lock);
+	p = &dcl->dcl_phys;
+	*saved = *p;
+	dcl->dcl_recv_saved = saved;
+	min_txg = dsl_dataset_phys(ds)->ds_creation_txg - 1;
+	memset(p, 0, sizeof (*p));
+	p->dclp_version = DSL_CLONEDUP_PHYS_VERSION;
+	p->dclp_last_txg = saved->dclp_last_txg;
+	p->dclp_state = DSS_SCANNING;
+	p->dclp_phase = POOL_CLONEDUP_INDEX;
+	p->dclp_min_txg = min_txg;
+	p->dclp_max_txg = spa_last_synced_txg(spa);
+	p->dclp_start_time = gethrestime_sec();
+	dcl->dcl_w.dcw_group_src_valid = B_FALSE;
+	dcl->dcl_dbg_left = 16;
+	DCL_BUMP(dcl, DCK_INDEX_WALKS, 1);
+	dsl_clonedup_index_create(dcl);
+	mutex_exit(&dcl->dcl_lock);
+	DCL_BUMP(dcl, DCK_RECV_RUNS, 1);
+
+	memset(&ra, 0, sizeof (ra));
+	ra.ra_dcl = dcl;
+	for (;;) {
+		/* as dsl_scan_visitds() holds it to visit a root */
+		rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
+		err = traverse_dataset(ds, min_txg,
+		    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA,
+		    dsl_clonedup_recv_index_cb, &ra);
+		rrw_exit(&ds->ds_bp_rwlock, FTAG);
+		if (err != 0)
+			break;
+		mutex_enter(&dcl->dcl_lock);
+		if (dcl->dcl_nentries == 0) {
+			next = dsl_clonedup_partition_done_locked(dcl,
+			    &unused);
+			mutex_exit(&dcl->dcl_lock);
+			if (next == DCLN_WALK)
+				continue;
+			break;
+		}
+		if (match) {
+			p->dclp_phase = POOL_CLONEDUP_MATCH;
+			DCL_BUMP(dcl, DCK_MATCH_WALKS, 1);
+			mutex_exit(&dcl->dcl_lock);
+
+			err = dsl_clonedup_recv_match(&ra);
+			if (err != 0)
+				break;
+			mutex_enter(&dcl->dcl_lock);
+		}
+		p->dclp_phase = POOL_CLONEDUP_APPLY;
+		dcl->dcl_w.dcw_gen = dcl->dcl_gen;
+		atomic_store_32(&dcl->dcl_apply_stop, B_FALSE);
+		mutex_exit(&dcl->dcl_lock);
+		dsl_clonedup_apply_groups(dcl, &dcl->dcl_w, NULL);
+		if (atomic_load_32(&dcl->dcl_apply_stop)) {
+			err = SET_ERROR(EINTR);
+			break;
+		}
+
+		mutex_enter(&dcl->dcl_lock);
+		/* switched off before it was done */
+		if (dcl->dcl_nentries != 0 ||
+		    !avl_is_empty(&dcl->dcl_punch)) {
+			mutex_exit(&dcl->dcl_lock);
+			err = SET_ERROR(ECANCELED);
+			break;
+		}
+		next = dsl_clonedup_partition_done_locked(dcl,
+		    &unused);
+		part = p->dclp_partition;
+		txg = dcl->dcl_apply_txg;
+		mutex_exit(&dcl->dcl_lock);
+		if (next != DCLN_WALK)
+			break;
+		/*
+		 * The next walk reads the dataset's tree from disk.
+		 * The clones rewrote part of it, and their txg frees
+		 * the blocks they replaced when it syncs.  A walk
+		 * that starts first can reach those blocks after
+		 * other writes have reused them, so wait for that
+		 * txg.
+		 */
+		err = txg_wait_synced_flags(dp, txg, TXG_WAIT_SIGNAL);
+		if (err != 0)
+			break;
+		zfs_dbgmsg("clonedup: partition %llu of the receive "
+		    "into %llu on %s walks at synced txg %llu, "
+		    "clones in txg %llu", (u_longlong_t)part,
+		    (u_longlong_t)ds->ds_object, spa_name(spa),
+		    (u_longlong_t)spa_last_synced_txg(spa),
+		    (u_longlong_t)txg);
+	}
+
+	mutex_enter(&dcl->dcl_lock);
+	*clonedp = p->dclp_applied;
+	*savedp = p->dclp_bytes_saved + p->dclp_bytes_saved_snapheld;
+	zfs_dbgmsg("clonedup: receive into %llu on %s: %llu blocks "
+	    "indexed, %llu candidates, %llu cloned, %llu bytes, "
+	    "err %d",
+	    (u_longlong_t)ds->ds_object, spa_name(spa),
+	    (u_longlong_t)p->dclp_blocks_indexed,
+	    (u_longlong_t)p->dclp_candidates, (u_longlong_t)*clonedp,
+	    (u_longlong_t)*savedp, err);
+	dsl_clonedup_index_destroy(dcl);
+	*p = *saved;
+	dcl->dcl_recv_saved = NULL;
+	dcl->dcl_recv_os = NULL;
+	dcl->dcl_recv_dsobj = 0;
+	mutex_exit(&dcl->dcl_lock);
+	kmem_free(saved, sizeof (*saved));
+	return (err);
 }
 
 void

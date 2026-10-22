@@ -125,7 +125,7 @@ derives from
 The counters in the kstat
 .Pa zfs/ Ns Ar pool Ns Pa /clonedup
 start at zero when the pool is imported or created and add up across every
-run and dry run.
+run, dry run and receive pass.
 They include the walks, the blocks read to verify a match, the clones and
 holes made, the pairs whose data turned out to differ, the times the apply
 thread stepped aside for an administrative operation, and
@@ -138,6 +138,11 @@ suspended it.
 counts the runs and dry runs that ended before they finished.
 .Sy filter_bytes
 adds up the size of every counting filter a run has taken.
+.Sy recv_runs
+counts the passes run by
+.Nm zfs Cm receive Fl k
+and
+.Fl K .
 .Pp
 A run never touches:
 .Bl -bullet -compact
@@ -318,6 +323,12 @@ A real run of any rank replaces a dry run.
 Otherwise a request of equal or lower rank fails with EBUSY, and so does
 a request made while a scrub, error scrub, resilver or sequential rebuild
 is in progress, a paused scrub included.
+While a
+.Nm zfs Cm receive Fl k
+or
+.Fl K
+pass is running, a request to start a run fails with a message that says
+so.
 .Pp
 A run needs the
 .Sy clonedup
@@ -340,6 +351,10 @@ restart.
 On a pool that only receives streams, every block is held by a snapshot
 and no dataset has changed since its latest one, so a run there rewrites
 nothing.
+On such a pool,
+.Nm zfs Cm receive Fl K
+runs the pass on the received blocks before the snapshot is taken
+.Pq see Xr zfs-receive 8 .
 .Bl -tag -width "-a"
 .It Fl a
 Run on all pools.

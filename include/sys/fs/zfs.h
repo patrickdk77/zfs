@@ -658,6 +658,21 @@ typedef enum {
 	ZFS_CLONEDUP_SOURCE
 } zfs_clonedup_mode_t;
 
+/* Why a receive's clonedup pass did not run */
+typedef enum {
+	ZFS_CLONEDUP_SKIP_NONE,		/* it ran */
+	ZFS_CLONEDUP_SKIP_ERROR,	/* see the errno */
+	ZFS_CLONEDUP_SKIP_BUSY,		/* a run or another pass */
+	ZFS_CLONEDUP_SKIP_RAW,		/* raw stream */
+	ZFS_CLONEDUP_SKIP_HEAL,		/* corrective receive */
+	ZFS_CLONEDUP_SKIP_ENCRYPTED,	/* encrypted dataset */
+	ZFS_CLONEDUP_SKIP_OFF,		/* clonedup=off */
+	ZFS_CLONEDUP_SKIP_SOURCE,	/* clonedup=source */
+	ZFS_CLONEDUP_SKIP_FEATURE,	/* block_cloning disabled */
+	ZFS_CLONEDUP_SKIP_BCLONE,	/* zfs_bclone_enabled=0 */
+	ZFS_CLONEDUP_SKIP_APPLY		/* apply_enabled=0 */
+} zfs_clonedup_skip_t;
+
 typedef enum {
 	ZFS_VOLMODE_DEFAULT = 0,
 	ZFS_VOLMODE_GEOM = 1,
@@ -1883,6 +1898,7 @@ typedef enum {
 	ZFS_ERR_TOO_MANY_SITOUTS,
 	ZFS_ERR_NO_USER_NS_SUPPORT,
 	ZFS_ERR_CRYPTO_KEY_MISMATCH,
+	ZFS_ERR_CLONEDUP_RECV_IN_PROGRESS,
 } zfs_errno_t;
 
 /*

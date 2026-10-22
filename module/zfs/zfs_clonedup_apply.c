@@ -59,6 +59,7 @@ typedef struct zfs_clonedup_own {
 	zfsvfs_t	*zco_zfsvfs;	/* filesystem: quotas */
 	uint64_t	zco_txg;	/* last txg written */
 	uint_t		zco_refs;
+	boolean_t	zco_lent;	/* a receive owns it */
 } zfs_clonedup_own_t;
 
 /*
@@ -451,6 +452,7 @@ zfs_clonedup_own_open(spa_t *spa, uint64_t dsobj, uint64_t object,
 	dst->zcd_own->zco_zfsvfs = zfsvfs;
 	dst->zcd_own->zco_txg = 0;
 	dst->zcd_own->zco_refs = 1;
+	dst->zcd_own->zco_lent = B_FALSE;
 	if (zfsvfs != NULL) {
 		err = zfs_clonedup_own_attrs(dst, &doi);
 		if (err != 0) {
@@ -546,6 +548,61 @@ zfs_clonedup_dst_share(zfs_clonedup_dst_t *dst, uint64_t object,
 }
 
 /*
+ * A destination in an objset the caller already owns, such as the
+ * dataset a receive is writing into.  The handle borrows that
+ * ownership, so its last close neither waits nor disowns, and makes
+ * the checks of an owned file.  Another object of the batch shares
+ * the loan through zfs_clonedup_dst_share() and its quota reader.
+ */
+int
+zfs_clonedup_dst_wrap(objset_t *os, uint64_t object,
+    zfs_clonedup_dst_t **dstp)
+{
+	dmu_object_info_t doi;
+	zfs_clonedup_dst_t *dst;
+	zfsvfs_t *zfsvfs = NULL;
+	dnode_t *dn;
+	int err;
+
+	err = dmu_object_info(os, object, &doi);
+	if (err == 0 && doi.doi_type != DMU_OT_PLAIN_FILE_CONTENTS &&
+	    doi.doi_type != DMU_OT_ZVOL)
+		err = SET_ERROR(ENOENT);
+	if (err != 0)
+		return (err);
+	if (dmu_objset_type(os) == DMU_OST_ZFS) {
+		err = zfs_clonedup_own_zfsvfs(os, &zfsvfs);
+		if (err != 0)
+			return (err);
+	}
+	err = dnode_hold(os, object, &zfs_clonedup_tag, &dn);
+	if (err != 0) {
+		if (zfsvfs != NULL)
+			zfsvfs_free(zfsvfs);
+		return (err);
+	}
+	dst = kmem_zalloc(sizeof (*dst), KM_SLEEP);
+	dst->zcd_object = object;
+	dst->zcd_os = os;
+	dst->zcd_dn = dn;
+	dst->zcd_own = kmem_alloc(sizeof (*dst->zcd_own), KM_SLEEP);
+	dst->zcd_own->zco_os = os;
+	dst->zcd_own->zco_zfsvfs = zfsvfs;
+	dst->zcd_own->zco_txg = 0;
+	dst->zcd_own->zco_refs = 1;
+	dst->zcd_own->zco_lent = B_TRUE;
+	if (zfsvfs != NULL) {
+		err = zfs_clonedup_own_attrs(dst, &doi);
+		if (err != 0) {
+			zfs_clonedup_dst_close(dst);
+			return (err);
+		}
+	}
+	*dstp = dst;
+	return (0);
+}
+
+/*
  * The mounted or open path is tried first, ownership second, and the
  * first path once more if the dataset was mounted or opened between
  * the two.  Whatever is left is EBUSY and counted as such.
@@ -611,12 +668,14 @@ zfs_clonedup_dst_close(zfs_clonedup_dst_t *dst)
 
 		dnode_rele(dst->zcd_dn, &zfs_clonedup_tag);
 		if (own != NULL && --own->zco_refs == 0) {
-			zfs_clonedup_wait_written(own->zco_os,
-			    own->zco_txg);
+			if (!own->zco_lent)
+				zfs_clonedup_wait_written(own->zco_os,
+				    own->zco_txg);
 			if (own->zco_zfsvfs != NULL)
 				zfsvfs_free(own->zco_zfsvfs);
-			dmu_objset_disown(own->zco_os, B_FALSE,
-			    &zfs_clonedup_tag);
+			if (!own->zco_lent)
+				dmu_objset_disown(own->zco_os,
+				    B_FALSE, &zfs_clonedup_tag);
 			kmem_free(own, sizeof (*own));
 		}
 	} else {
@@ -673,12 +732,13 @@ zfs_clonedup_dst_kind(zfs_clonedup_dst_t *dst)
  * True when this handle holds the dataset through dmu_objset_own(),
  * which no second worker can hold.  A mounted filesystem is pinned
  * by a reference and an open volume by a reader, and several
- * workers can hold either at once.
+ * workers can hold either at once.  A receive lends its objset to
+ * every worker of its pass.
  */
 boolean_t
 zfs_clonedup_dst_exclusive(zfs_clonedup_dst_t *dst)
 {
-	return (dst->zcd_own != NULL);
+	return (dst->zcd_own != NULL && !dst->zcd_own->zco_lent);
 }
 
 /* The switch every block cloning path honours. */

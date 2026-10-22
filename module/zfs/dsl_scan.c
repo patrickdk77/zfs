@@ -1011,6 +1011,9 @@ dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 	if (vdev_rebuild_active(rvd) ||
 	    dsl_errorscrubbing(scn->scn_dp))
 		return (SET_ERROR(EBUSY));
+	if (ssa->func == POOL_SCAN_CLONEDUP &&
+	    dsl_clonedup_recv_active(scn->scn_dp))
+		return (SET_ERROR(ZFS_ERR_CLONEDUP_RECV_IN_PROGRESS));
 
 	return (0);
 }
@@ -1311,7 +1314,8 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 	 */
 	if (func == POOL_SCAN_CLONEDUP && !dsl_scan_is_running(scn) &&
 	    !vdev_rebuild_active(spa->spa_root_vdev) &&
-	    !dsl_errorscrubbing(dp)) {
+	    !dsl_errorscrubbing(dp) &&
+	    !dsl_clonedup_recv_active(dp)) {
 		setup_sync_arg.clonedup_filter =
 		    dsl_clonedup_filter_prepare(dp, flags);
 	}

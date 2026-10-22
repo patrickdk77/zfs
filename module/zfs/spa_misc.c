@@ -3059,9 +3059,17 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 	/* clonedup data stored on disk */
 	if (spa->spa_dsl_pool->dp_clonedup != NULL) {
 		dsl_clonedup_t *dcl = spa->spa_dsl_pool->dp_clonedup;
-		dsl_clonedup_phys_t *cp = &dcl->dcl_phys;
+		dsl_clonedup_phys_t *cp;
+		uint64_t left;
 
 		mutex_enter(&dcl->dcl_lock);
+		/*
+		 * A receive's pass keeps its counts in dcl_phys and
+		 * its blocks in the index until it puts the saved
+		 * record back.  Until then, report that record.
+		 */
+		cp = dcl->dcl_recv_saved != NULL ?
+		    dcl->dcl_recv_saved : &dcl->dcl_phys;
 		if (cp->dclp_flags & DSF_CLONEDUP_FULL)
 			ps->pss_clonedup_flags |=
 			    POOL_SCRUB_CLONEDUP_FULL;
@@ -3104,9 +3112,11 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 			ps->pss_errors += cp->dclp_errors;
 
 		/* clonedup data not stored on disk */
-		ps->pss_clonedup_apply_total = dcl->dcl_apply_total;
-		ps->pss_clonedup_apply_done = dcl->dcl_apply_total -
+		left = dcl->dcl_recv_saved != NULL ? 0 :
 		    MIN(dcl->dcl_nentries, dcl->dcl_apply_total);
+		ps->pss_clonedup_apply_total = dcl->dcl_apply_total;
+		ps->pss_clonedup_apply_done =
+		    dcl->dcl_apply_total - left;
 		mutex_exit(&dcl->dcl_lock);
 	}
 

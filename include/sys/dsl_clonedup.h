@@ -173,6 +173,7 @@ typedef enum dsl_clonedup_kstat_id {
 	DCK_COUNT_WALKS,	/* counting pre-passes run */
 	DCK_FILTER_DROPPED,	/* blocks the filter kept out */
 	DCK_FILTER_BYTES,	/* bytes of the filters runs took */
+	DCK_RECV_RUNS,		/* passes run after a receive */
 	DCK_NUM
 } dsl_clonedup_kstat_id_t;
 
@@ -268,6 +269,7 @@ typedef struct dsl_clonedup_worker {
 	avl_tree_t	dcw_dscache;	/* per-dataset answers */
 	uint64_t	dcw_dscache_txg;
 	boolean_t	dcw_dscache_ready;
+	kthread_t	*dcw_dscache_owner; /* the thread using it */
 	uint64_t	dcw_gen;	/* dcl_gen it serves */
 	/* zero checksums, the oldest replaced first */
 	dsl_clonedup_zcksum_t dcw_zcksum[DCL_ZCKSUM_SLOTS];
@@ -318,6 +320,16 @@ typedef struct dsl_clonedup {
 	uint64_t	dcl_mem_peak;	/* DCK_MEM_PEAK */
 	uint64_t	dcl_splits;
 	dsl_clonedup_filter_t *dcl_filter;
+
+	/* a receive-time pass owns the index while these are set */
+	objset_t	*dcl_recv_os;
+	uint64_t	dcl_recv_dsobj;
+	/* the record a pass saved, for status to report */
+	dsl_clonedup_phys_t *dcl_recv_saved;
+	/* a pass's verify reads, counted apart from a scan's */
+	kmutex_t	dcl_recv_vlock;
+	kcondvar_t	dcl_recv_vcv;
+	uint64_t	dcl_recv_inflight;
 
 	/*
 	 * What one apply worker holds while it works: its batch, the
@@ -407,6 +419,8 @@ dsl_clonedup_err_moved(int err)
  * object of a dataset the apply thread owns.
  */
 typedef struct zfs_clonedup_dst zfs_clonedup_dst_t;
+int zfs_clonedup_dst_wrap(objset_t *os, uint64_t object,
+    zfs_clonedup_dst_t **dstp);
 int zfs_clonedup_dst_open(spa_t *spa, uint64_t dsobj, uint64_t object,
     zfs_clonedup_dst_t **dstp);
 int zfs_clonedup_dst_share(zfs_clonedup_dst_t *dst, uint64_t object,
@@ -493,6 +507,10 @@ boolean_t dsl_clonedup_src_held(struct dsl_pool *dp, uint64_t dsobj);
 boolean_t dsl_clonedup_walk_unchanged(struct dsl_dataset *ds);
 int dsl_clonedup_src_in_range(objset_t *os, uint64_t object,
     uint64_t blkid, uint64_t blksz);
+int dsl_clonedup_recv(struct dsl_pool *dp, struct dsl_dataset *ds,
+    boolean_t match, uint64_t *clonedp, uint64_t *savedp,
+    uint64_t *skipp);
+boolean_t dsl_clonedup_recv_active(struct dsl_pool *dp);
 dsl_clonedup_next_t dsl_clonedup_partition_done(dsl_clonedup_t *dcl,
     uint64_t *min_txgp, dmu_tx_t *tx);
 dsl_clonedup_t *dsl_clonedup_yield_begin(spa_t *spa);
