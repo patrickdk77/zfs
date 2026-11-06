@@ -1792,6 +1792,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/fault/setup.ksh \
 	functional/fault/zpool_status_-s.ksh \
 	functional/features/async_destroy/async_destroy_001_pos.ksh \
+	functional/features/async_destroy/async_destroy_leak_on_eio.ksh \
 	functional/features/async_destroy/cleanup.ksh \
 	functional/features/async_destroy/setup.ksh \
 	functional/features/large_dnode/cleanup.ksh \

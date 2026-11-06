@@ -805,7 +805,7 @@ tests = ['fallocate_punch-hole']
 tags = ['functional', 'fallocate']
 
 [tests/functional/features/async_destroy]
-tests = ['async_destroy_001_pos']
+tests = ['async_destroy_001_pos', 'async_destroy_leak_on_eio']
 tags = ['functional', 'features', 'async_destroy']
 
 [tests/functional/features/large_dnode]
