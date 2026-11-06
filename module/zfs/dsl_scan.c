@@ -3959,6 +3959,28 @@ dsl_scan_need_resilver(spa_t *spa, const dva_t *dva, size_t psize,
 	return (B_TRUE);
 }
 
+static void
+dsl_scan_leak_space(dsl_pool_t *dp, uint64_t used, uint64_t comp,
+    uint64_t uncomp, dmu_tx_t *tx)
+{
+	if (used == 0 && comp == 0 && uncomp == 0)
+		return;
+	if (dp->dp_leak_dir == NULL) {
+		rrw_enter(&dp->dp_config_rwlock, RW_WRITER, FTAG);
+		(void) dsl_dir_create_sync(dp, dp->dp_root_dir,
+		    LEAK_DIR_NAME, tx);
+		VERIFY0(dsl_pool_open_special_dir(dp,
+		    LEAK_DIR_NAME, &dp->dp_leak_dir));
+		/* Keeping $LEAK open raises spa_minref */
+		dp->dp_spa->spa_minref += 3;
+		rrw_exit(&dp->dp_config_rwlock, FTAG);
+	}
+	dsl_dir_diduse_space(dp->dp_leak_dir, DD_USED_HEAD,
+	    used, comp, uncomp, tx);
+	dsl_dir_diduse_space(dp->dp_free_dir, DD_USED_HEAD,
+	    -used, -comp, -uncomp, tx);
+}
+
 static int
 dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 {
@@ -4002,6 +4024,20 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		}
 
 		if (bptree_is_empty(dp->dp_meta_objset, dp->dp_bptree_obj)) {
+			dmu_buf_t *db;
+			bptree_phys_t *bt;
+
+			VERIFY0(dmu_bonus_hold(dp->dp_meta_objset,
+			    dp->dp_bptree_obj, FTAG, &db));
+			bt = db->db_data;
+			dsl_scan_leak_space(dp, bt->bt_bytes,
+			    bt->bt_comp, bt->bt_uncomp, tx);
+			dmu_buf_will_dirty(db, tx);
+			bt->bt_bytes = 0;
+			bt->bt_comp = 0;
+			bt->bt_uncomp = 0;
+			dmu_buf_rele(db, FTAG);
+
 			/* finished; deactivate async destroy feature */
 			spa_feature_decr(spa, SPA_FEATURE_ASYNC_DESTROY, tx);
 			ASSERT(!spa_feature_is_active(spa,
@@ -4048,6 +4084,7 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 	if (err != 0)
 		return (err);
 	if (dp->dp_free_dir != NULL && !scn->scn_async_destroying &&
+	    !spa_livelist_delete_check(spa) &&
 	    zfs_free_leak_on_eio &&
 	    (dsl_dir_phys(dp->dp_free_dir)->dd_used_bytes != 0 ||
 	    dsl_dir_phys(dp->dp_free_dir)->dd_compressed_bytes != 0 ||
@@ -4057,24 +4094,11 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		 * some space left in the dp_free_dir. Transfer this leaked
 		 * space to the dp_leak_dir.
 		 */
-		if (dp->dp_leak_dir == NULL) {
-			rrw_enter(&dp->dp_config_rwlock, RW_WRITER, FTAG);
-			(void) dsl_dir_create_sync(dp, dp->dp_root_dir,
-			    LEAK_DIR_NAME, tx);
-			VERIFY0(dsl_pool_open_special_dir(dp,
-			    LEAK_DIR_NAME, &dp->dp_leak_dir));
-			/* Keeping $LEAK open raises spa_minref */
-			spa->spa_minref += 3;
-			rrw_exit(&dp->dp_config_rwlock, FTAG);
-		}
-		dsl_dir_diduse_space(dp->dp_leak_dir, DD_USED_HEAD,
-		    dsl_dir_phys(dp->dp_free_dir)->dd_used_bytes,
-		    dsl_dir_phys(dp->dp_free_dir)->dd_compressed_bytes,
-		    dsl_dir_phys(dp->dp_free_dir)->dd_uncompressed_bytes, tx);
-		dsl_dir_diduse_space(dp->dp_free_dir, DD_USED_HEAD,
-		    -dsl_dir_phys(dp->dp_free_dir)->dd_used_bytes,
-		    -dsl_dir_phys(dp->dp_free_dir)->dd_compressed_bytes,
-		    -dsl_dir_phys(dp->dp_free_dir)->dd_uncompressed_bytes, tx);
+		dsl_dir_phys_t *ddp = dsl_dir_phys(dp->dp_free_dir);
+
+		dsl_scan_leak_space(dp, ddp->dd_used_bytes,
+		    ddp->dd_compressed_bytes,
+		    ddp->dd_uncompressed_bytes, tx);
 	}
 
 	if (dp->dp_free_dir != NULL && !scn->scn_async_destroying &&
