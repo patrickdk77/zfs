@@ -4063,6 +4063,8 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 			    LEAK_DIR_NAME, tx);
 			VERIFY0(dsl_pool_open_special_dir(dp,
 			    LEAK_DIR_NAME, &dp->dp_leak_dir));
+			/* Keeping $LEAK open raises spa_minref */
+			spa->spa_minref += 3;
 			rrw_exit(&dp->dp_config_rwlock, FTAG);
 		}
 		dsl_dir_diduse_space(dp->dp_leak_dir, DD_USED_HEAD,
