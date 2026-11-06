@@ -820,6 +820,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_destroy/zfs_clone_livelist_condense_and_disable.ksh \
 	functional/cli_root/zfs_destroy/zfs_clone_livelist_condense_races.ksh \
 	functional/cli_root/zfs_destroy/zfs_clone_livelist_dedup.ksh \
+	functional/cli_root/zfs_destroy/zfs_clone_livelist_leak_on_eio.ksh \
 	functional/cli_root/zfs_destroy/zfs_destroy_001_pos.ksh \
 	functional/cli_root/zfs_destroy/zfs_destroy_002_pos.ksh \
 	functional/cli_root/zfs_destroy/zfs_destroy_003_pos.ksh \
