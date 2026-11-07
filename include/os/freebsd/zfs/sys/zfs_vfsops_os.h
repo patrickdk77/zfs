@@ -99,6 +99,7 @@ struct zfsvfs {
 #define	ZFS_OBJ_MTX_SZ	64
 	kmutex_t	z_hold_mtx[ZFS_OBJ_MTX_SZ];	/* znode hold locks */
 	struct task	z_unlinked_drain_task;
+	boolean_t	z_unlinked_drain_deferred; /* drain at first unlink */
 };
 
 #define	ZFS_TEARDOWN_INIT(zfsvfs)		\

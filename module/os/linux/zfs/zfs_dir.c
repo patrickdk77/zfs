@@ -433,6 +433,8 @@ zfs_dirlook(znode_t *dzp, char *name, znode_t **zpp, int flags,
 	return (error);
 }
 
+static void zfs_unlinked_drain_start_deferred(zfsvfs_t *zfsvfs);
+
 /*
  * unlinked Set (formerly known as the "delete queue") Error Handling
  *
@@ -459,6 +461,9 @@ zfs_unlinked_add(znode_t *zp, dmu_tx_t *tx)
 	    zap_add_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
 
 	dataset_kstats_update_nunlinks_kstat(&zfsvfs->z_kstat, 1);
+
+	if (zfsvfs->z_unlinked_drain_deferred)
+		zfs_unlinked_drain_start_deferred(zfsvfs);
 }
 
 /*
@@ -552,13 +557,48 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 }
 
 /*
+ * Start the drain that zfsvfs_setup() or zfs_resume_fs() deferred.  The
+ * caller is in an assigned tx and may hold znode locks, so the drain is
+ * only dispatched, without sleeping.  If the dispatch fails, the next
+ * entry added tries again.
+ */
+static void
+zfs_unlinked_drain_start_deferred(zfsvfs_t *zfsvfs)
+{
+	taskq_t *tq = dsl_pool_unlinked_drain_taskq(
+	    dmu_objset_pool(zfsvfs->z_os));
+
+	mutex_enter(&zfsvfs->z_lock);
+	if (zfsvfs->z_unlinked_drain_deferred) {
+		ASSERT3B(zfsvfs->z_draining, ==, B_FALSE);
+		zfsvfs->z_draining = B_TRUE;
+		zfsvfs->z_drain_cancel = B_FALSE;
+		zfsvfs->z_drain_task = taskq_dispatch(tq,
+		    zfs_unlinked_drain_task, zfsvfs, TQ_NOSLEEP);
+		if (zfsvfs->z_drain_task != TASKQID_INVALID) {
+			zfsvfs->z_unlinked_drain_deferred = B_FALSE;
+		} else {
+			zfsvfs->z_draining = B_FALSE;
+			zfs_dbgmsg("deferred zfs_unlinked_drain dispatch "
+			    "failed");
+		}
+	}
+	mutex_exit(&zfsvfs->z_lock);
+}
+
+/*
  * Wait for the unlinked drain taskq task to stop. This will interrupt the
- * unlinked set processing if it is in progress.
+ * unlinked set processing if it is in progress.  A deferred drain is
+ * cancelled too, so that no entry added later starts it.
  */
 void
 zfs_unlinked_drain_stop_wait(zfsvfs_t *zfsvfs)
 {
 	ASSERT3B(zfsvfs->z_unmounted, ==, B_FALSE);
+
+	mutex_enter(&zfsvfs->z_lock);
+	zfsvfs->z_unlinked_drain_deferred = B_FALSE;
+	mutex_exit(&zfsvfs->z_lock);
 
 	if (zfsvfs->z_draining) {
 		zfsvfs->z_drain_cancel = B_TRUE;
@@ -724,8 +764,9 @@ zfs_rmnode(znode_t *zp)
 	if (error) {
 		/*
 		 * Not enough space to delete the file.  Leave it in the
-		 * unlinked set, leaking it until the fs is remounted (at
-		 * which point we'll call zfs_unlinked_drain() to process it).
+		 * unlinked set, leaking it until zfs_unlinked_drain() runs
+		 * again.  A later mount starts it, or defers it to its
+		 * first unlink.
 		 */
 		dmu_tx_abort(tx);
 		zh = zfs_znode_hold_enter(zfsvfs, z_id);

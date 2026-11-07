@@ -639,6 +639,7 @@ extern boolean_t zil_replay(objset_t *os, void *arg,
     zil_replay_func_t *const replay_func[TX_MAX_TYPE]);
 extern boolean_t zil_replaying(zilog_t *zilog, dmu_tx_t *tx);
 extern boolean_t zil_replay_whole_blocks(zilog_t *zilog);
+extern boolean_t zil_replay_needed(zilog_t *zilog);
 extern boolean_t zil_destroy(zilog_t *zilog, boolean_t keep_first);
 extern void	zil_destroy_sync(zilog_t *zilog, dmu_tx_t *tx);
 

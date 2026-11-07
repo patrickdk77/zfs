@@ -5243,6 +5243,14 @@ zil_replaying(zilog_t *zilog, dmu_tx_t *tx)
 	return (B_FALSE);
 }
 
+boolean_t
+zil_replay_needed(zilog_t *zilog)
+{
+	const zil_header_t *zh = zilog->zl_header;
+
+	return ((zh->zh_flags & ZIL_REPLAY_NEEDED) != 0);
+}
+
 int
 zil_reset(const char *osname, void *arg)
 {
@@ -5264,6 +5272,7 @@ EXPORT_SYMBOL(zil_close);
 EXPORT_SYMBOL(zil_replay);
 EXPORT_SYMBOL(zil_replaying);
 EXPORT_SYMBOL(zil_replay_whole_blocks);
+EXPORT_SYMBOL(zil_replay_needed);
 EXPORT_SYMBOL(zil_destroy);
 EXPORT_SYMBOL(zil_destroy_sync);
 EXPORT_SYMBOL(zil_itx_create);

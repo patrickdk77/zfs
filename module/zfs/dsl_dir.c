@@ -2473,7 +2473,12 @@ dsl_dir_activity_in_progress(dsl_dir_t *dd, dsl_dataset_t *ds,
 		if (error != 0)
 			break;
 
-		if (readonly || !spa_writeable(dd->dd_pool->dp_spa)) {
+		/*
+		 * A mount that deferred its drain has not started it, and
+		 * a wait would last until the first unlink.
+		 */
+		if (readonly || !spa_writeable(dd->dd_pool->dp_spa) ||
+		    zfs_get_unlinked_drain_deferred(os)) {
 			*in_progress = B_FALSE;
 			return (0);
 		}

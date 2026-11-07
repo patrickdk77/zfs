@@ -243,6 +243,8 @@ zfs_dirlook(znode_t *dzp, const char *name, znode_t **zpp)
 	return (error);
 }
 
+extern taskq_t *zfsvfs_taskq;
+
 /*
  * unlinked Set (formerly known as the "delete queue") Error Handling
  *
@@ -268,6 +270,21 @@ zfs_unlinked_add(znode_t *zp, dmu_tx_t *tx)
 	VERIFY0(zap_add_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
 
 	dataset_kstats_update_nunlinks_kstat(&zfsvfs->z_kstat, 1);
+
+	/*
+	 * Start the drain that zfsvfs_setup() or zfs_resume_fs() deferred.
+	 * The caller is in an assigned tx, so queue the task as
+	 * zfs_rmnode() does.
+	 */
+	if (zfsvfs->z_unlinked_drain_deferred) {
+		mutex_enter(&zfsvfs->z_lock);
+		if (zfsvfs->z_unlinked_drain_deferred) {
+			zfsvfs->z_unlinked_drain_deferred = B_FALSE;
+			taskqueue_enqueue(zfsvfs_taskq->tq_queue,
+			    &zfsvfs->z_unlinked_drain_task);
+		}
+		mutex_exit(&zfsvfs->z_lock);
+	}
 }
 
 /*
@@ -413,8 +430,6 @@ zfs_purgedir(znode_t *dzp)
 	return (skipped);
 }
 
-extern taskq_t *zfsvfs_taskq;
-
 void
 zfs_rmnode(znode_t *zp)
 {
@@ -497,8 +512,9 @@ zfs_rmnode(znode_t *zp)
 	if (error) {
 		/*
 		 * Not enough space to delete the file.  Leave it in the
-		 * unlinked set, leaking it until the fs is remounted (at
-		 * which point we'll call zfs_unlinked_drain() to process it).
+		 * unlinked set, leaking it until zfs_unlinked_drain() runs
+		 * again.  A later mount starts it, or defers it to its
+		 * first unlink.
 		 */
 		dmu_tx_abort(tx);
 		ZFS_OBJ_HOLD_ENTER(zfsvfs, z_id);

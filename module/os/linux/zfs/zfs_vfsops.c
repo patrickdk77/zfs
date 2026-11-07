@@ -712,6 +712,18 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	return (0);
 }
 
+static boolean_t
+zfs_unchanged_since_prev(dsl_dataset_t *ds)
+{
+	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+	boolean_t unchanged;
+
+	dsl_pool_config_enter(dp, FTAG);
+	unchanged = dsl_dataset_unchanged_since_prev(ds);
+	dsl_pool_config_exit(dp, FTAG);
+	return (unchanged);
+}
+
 static int
 zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 {
@@ -743,6 +755,7 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 			readonly_changed_cb(zfsvfs, B_FALSE);
 		} else {
 			zap_stats_t zs;
+			boolean_t defer = B_FALSE;
 			if (zap_get_stats(zfsvfs->z_os, zfsvfs->z_unlinkedobj,
 			    &zs) == 0) {
 				dataset_kstats_update_nunlinks_kstat(
@@ -750,8 +763,23 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 				dprintf_ds(zfsvfs->z_os->os_dsl_dataset,
 				    "num_entries in unlinked set: %llu",
 				    zs.zs_num_entries);
+				defer = zs.zs_num_entries != 0 &&
+				    !zil_replay_needed(zfsvfs->z_log) &&
+				    zfs_unchanged_since_prev(
+				    dmu_objset_ds(zfsvfs->z_os));
 			}
-			zfs_unlinked_drain(zfsvfs);
+			/*
+			 * When the dataset has not changed since its newest
+			 * snapshot, the snapshot holds every file in the set.
+			 * Draining them then frees no space and makes the
+			 * dataset differ from the snapshot, so the drain waits
+			 * for the first unlink on this mount.  A log to replay
+			 * changes the dataset anyway.
+			 */
+			if (defer)
+				zfsvfs->z_unlinked_drain_deferred = B_TRUE;
+			else
+				zfs_unlinked_drain(zfsvfs);
 			dsl_dir_t *dd = zfsvfs->z_os->os_dsl_dataset->ds_dir;
 			dd->dd_activity_cancelled = B_FALSE;
 		}
@@ -1907,12 +1935,26 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
 	if (!zfs_is_readonly(zfsvfs) && !zfsvfs->z_unmounted) {
+		zap_stats_t zs;
+
 		/*
 		 * zfs_suspend_fs() could have interrupted freeing
 		 * of dnodes. We need to restart this freeing so
-		 * that we don't "leak" the space.
+		 * that we don't "leak" the space, unless the dataset
+		 * has not changed since its newest snapshot, as after
+		 * a receive or a rollback; see zfsvfs_setup().  Wake
+		 * any deleteq waiter so that it sees the deferral.
 		 */
-		zfs_unlinked_drain(zfsvfs);
+		if (zap_get_stats(zfsvfs->z_os, zfsvfs->z_unlinkedobj,
+		    &zs) == 0 && zs.zs_num_entries != 0 &&
+		    zfs_unchanged_since_prev(ds)) {
+			zfsvfs->z_unlinked_drain_deferred = B_TRUE;
+			mutex_enter(&ds->ds_dir->dd_activity_lock);
+			cv_broadcast(&ds->ds_dir->dd_activity_cv);
+			mutex_exit(&ds->ds_dir->dd_activity_lock);
+		} else {
+			zfs_unlinked_drain(zfsvfs);
+		}
 	}
 
 	/*
@@ -2125,6 +2167,27 @@ zfs_get_vfs_flag_unmounted(objset_t *os)
 	mutex_exit(&os->os_user_ptr_lock);
 
 	return (unmounted);
+}
+
+/*
+ * Return true if the mounted file system has put off draining its
+ * unlinked set until the first unlink.
+ */
+boolean_t
+zfs_get_unlinked_drain_deferred(objset_t *os)
+{
+	zfsvfs_t *zfvp;
+	boolean_t deferred = B_FALSE;
+
+	ASSERT(dmu_objset_type(os) == DMU_OST_ZFS);
+
+	mutex_enter(&os->os_user_ptr_lock);
+	zfvp = dmu_objset_get_user(os);
+	if (zfvp != NULL && zfvp->z_unlinked_drain_deferred)
+		deferred = B_TRUE;
+	mutex_exit(&os->os_user_ptr_lock);
+
+	return (deferred);
 }
 
 void

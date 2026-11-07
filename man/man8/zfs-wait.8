@@ -17,7 +17,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd July 11, 2022
+.Dd October 23, 2026
 .Dt ZFS-WAIT 8
 .Os
 .
@@ -51,6 +51,11 @@ The filesystem's internal delete queue to empty
 Note that the internal delete queue does not finish draining until
 all large files have had time to be fully destroyed and all open file
 handles to unlinked files are closed.
+.Pp
+If a filesystem has not changed since its newest snapshot when it is
+mounted, received into or rolled back, it drains the delete queue entries
+that the snapshot holds only after a file is unlinked, and the command
+does not wait for them before then.
 .
 .Sh SEE ALSO
 .Xr lsof 8
