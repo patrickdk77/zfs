@@ -279,13 +279,8 @@ bptree_iterate(objset_t *os, uint64_t obj, boolean_t free, bptree_itor_t func,
 	    ba.ba_phys->bt_begin == ba.ba_phys->bt_end);
 
 	/* if all blocks are free there should be no used space */
-	if (ba.ba_phys->bt_begin == ba.ba_phys->bt_end) {
-		if (zfs_free_leak_on_eio) {
-			ba.ba_phys->bt_bytes = 0;
-			ba.ba_phys->bt_comp = 0;
-			ba.ba_phys->bt_uncomp = 0;
-		}
-
+	if (ba.ba_phys->bt_begin == ba.ba_phys->bt_end &&
+	    !zfs_free_leak_on_eio) {
 		ASSERT0(ba.ba_phys->bt_bytes);
 		ASSERT0(ba.ba_phys->bt_comp);
 		ASSERT0(ba.ba_phys->bt_uncomp);
