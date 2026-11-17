@@ -2021,6 +2021,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/poolversion/poolversion_001_pos.ksh \
 	functional/poolversion/poolversion_002_pos.ksh \
 	functional/poolversion/setup.ksh \
+	functional/prefetch/cleanup.ksh \
+	functional/prefetch/prefetch_cold_start.ksh \
+	functional/prefetch/prefetch_stream_reuse.ksh \
+	functional/prefetch/setup.ksh \
 	functional/privilege/cleanup.ksh \
 	functional/privilege/privilege_001_pos.ksh \
 	functional/privilege/privilege_002_pos.ksh \

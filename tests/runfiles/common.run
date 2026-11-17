@@ -928,6 +928,10 @@ pre =
 post =
 tags = ['functional', 'pool_names']
 
+[tests/functional/prefetch]
+tests = ['prefetch_cold_start', 'prefetch_stream_reuse']
+tags = ['functional', 'prefetch']
+
 [tests/functional/projectquota]
 tests = ['defaultprojectquota_002_pos', 'defaultprojectquota_003_neg',
     'defaultprojectquota_004_pos', 'defaultprojectquota_006_pos',
