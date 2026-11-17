@@ -34,6 +34,7 @@ typedef struct zfetch {
 	list_t		zf_stream;	/* list of zstream_t's */
 	struct dnode	*zf_dnode;	/* dnode that owns this zfetch */
 	int		zf_numstreams;	/* number of zstream_t's */
+	uint32_t	zf_map;		/* buckets near streams */
 } zfetch_t;
 
 typedef struct zsrange {
@@ -54,8 +55,9 @@ typedef struct zstream {
 	uint64_t	zs_pf_end;	/* data block to prefetch up to */
 	uint64_t	zs_ipf_start;	/* first data block to prefetch L1 */
 	uint64_t	zs_ipf_end;	/* data block to prefetch L1 up to */
-	boolean_t	zs_missed;	/* stream saw cache misses */
-	boolean_t	zs_more;	/* need more distant prefetch */
+	uint8_t		zs_missed;	/* stream saw cache misses */
+	uint8_t		zs_more;	/* grow prefetch distance */
+	uint8_t		zs_hit;		/* moved, strided or primed */
 	zfs_refcount_t	zs_callers;	/* number of pending callers */
 	/*
 	 * Number of stream references: dnode, callers and pending blocks.
@@ -71,7 +73,7 @@ void		dmu_zfetch_init(zfetch_t *, struct dnode *);
 void		dmu_zfetch_fini(zfetch_t *);
 boolean_t	dmu_zfetch_prime(zfetch_t *, uint64_t, uint64_t);
 zstream_t	*dmu_zfetch_prepare(zfetch_t *, uint64_t, uint64_t, boolean_t,
-    boolean_t);
+    boolean_t, boolean_t *);
 void		dmu_zfetch_run(zfetch_t *, zstream_t *, boolean_t, boolean_t,
     boolean_t);
 void		dmu_zfetch(zfetch_t *, uint64_t, uint64_t, boolean_t, boolean_t,

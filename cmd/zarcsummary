@@ -840,8 +840,11 @@ def section_dmu(kstats_dict):
     prt_i2('Stream misses:',
            f_perc(zfetch_stats['misses'], zfetch_access_total),
            f_hits(zfetch_stats['misses']))
+    create_tries = max(0, int(zfetch_stats['misses']) -
+                       int(zfetch_stats.get('skipped', 0)) -
+                       int(zfetch_stats.get('busy', 0)))
     prt_i2('Streams limit reached:',
-           f_perc(zfetch_stats['max_streams'], zfetch_stats['misses']),
+           f_perc(zfetch_stats['max_streams'], create_tries),
            f_hits(zfetch_stats['max_streams']))
     prt_i1('Stream strides:', f_hits(zfetch_stats['stride']))
     prt_i1('Prefetches issued', f_hits(zfetch_stats['io_issued']))

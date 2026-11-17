@@ -493,7 +493,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 	dmu_flags_t dbuf_flags;
 	int err;
 	zio_t *zio = NULL;
-	boolean_t missed = B_FALSE;
+	boolean_t missed = B_FALSE, skipped = B_FALSE;
 
 	ASSERT(!read || length <= DMU_MAX_ACCESS);
 
@@ -537,7 +537,8 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		 * base predictions on the original less racy request order.
 		 */
 		zs = dmu_zfetch_prepare(&dn->dn_zfetch, blkid, nblks,
-		    read && !(flags & DMU_DIRECTIO), B_TRUE);
+		    read && !(flags & DMU_DIRECTIO), B_TRUE,
+		    &skipped);
 	}
 	for (i = 0; i < nblks; i++) {
 		dmu_buf_impl_t *db = dbuf_hold(dn, blkid + i, tag);
@@ -590,6 +591,10 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 
 	if (zs) {
 		dmu_zfetch_run(&dn->dn_zfetch, zs, missed, B_TRUE,
+		    (flags & DMU_UNCACHEDIO));
+	} else if (skipped && missed) {
+		dmu_zfetch(&dn->dn_zfetch, blkid, nblks,
+		    read && !(flags & DMU_DIRECTIO), B_TRUE, B_TRUE,
 		    (flags & DMU_UNCACHEDIO));
 	}
 	rw_exit(&dn->dn_struct_rwlock);

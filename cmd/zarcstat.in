@@ -159,6 +159,10 @@ cols = {
     "zstride":    [7, 1000, "zfetch stream strides per second"],
     "zissued":    [7, 1000, "zfetch prefetches issued per second"],
     "zactive":    [7, 1000, "zfetch prefetches active per second"],
+    "zskip":      [5, 1000, "zfetch misses that skipped the lock per second"],
+    "zsamp":      [5, 1000, "zfetch far calls that took the lock per second"],
+    "znear":      [5, 1000, "zfetch calls near a stream per second"],
+    "zbusy":      [5, 1000, "zfetch near calls with the lock held per second"],
 }
 
 # ARC structural breakdown from zarcsummary
@@ -244,7 +248,8 @@ hdr = ["time", "read", "ddread", "ddh%", "dmread", "dmh%", "pread", "ph%",
 xhdr = ["time", "mfu", "mru", "mfug", "mrug", "unc", "eskip", "mtxmis",
         "dread", "pread", "read"]
 zhdr = ["time", "ztotal", "zhits", "zahead", "zpast", "zmisses", "zmax",
-        "zfuture", "zstride", "zissued", "zactive"]
+        "zfuture", "zstride", "zissued", "zactive", "zskip", "zsamp",
+        "znear", "zbusy"]
 sint = 1               # Default interval is 1 second
 count = 1              # Default count is 1
 hdr_intr = 20          # Print header every 20 lines of output
@@ -707,6 +712,10 @@ def calculate():
     v["zstride"] = d["zfetch_stride"] / sint
     v["zissued"] = d["zfetch_io_issued"] / sint
     v["zactive"] = d["zfetch_io_active"] / sint
+    v["zskip"] = d.get("zfetch_skipped", 0) / sint
+    v["zsamp"] = d.get("zfetch_sampled", 0) / sint
+    v["znear"] = d.get("zfetch_near", 0) / sint
+    v["zbusy"] = d.get("zfetch_busy", 0) / sint
 
     # ARC structural breakdown, ARC types breakdown, ARC states breakdown
     v["cachessz"] = cur["caches_size"]

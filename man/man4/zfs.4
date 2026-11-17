@@ -824,6 +824,34 @@ Min time before inactive prefetch stream can be reclaimed
 .It Sy zfetch_max_sec_reap Ns = Ns Sy 2 Pq uint
 Max time before inactive prefetch stream can be deleted
 .
+.It Sy zfetch_miss_sample Ns = Ns Sy 16 Pq uint
+A read that no prefetch stream of the file is near tries to create a
+new stream only if it covers a block number divisible by this value,
+misses the cache, or the file has fewer streams than
+.Sy zfetch_max_streams
+allows for its size.
+The other reads that no stream is near create nothing and skip the
+file's prefetch lock, so random readers of cached data in a large file
+take that lock less often once it has all its streams.
+A sequential reader gets a stream at its first read while the file
+has room for one, and otherwise tries to at its first read that misses
+the cache or by the time it has read this many blocks.
+A read near a stream that finds the prefetch lock held by another
+thread does not wait for it and is not matched to any stream.
+If that read then misses the cache, it waits for the lock after
+issuing its disk reads and is matched as usual.
+Writes are handled like reads that hit the cache.
+Whether a read is near a stream is decided by buckets of the file.
+A bucket is the smallest power of two larger than
+.Sy zfetch_max_reorder ,
+but at least one block, and a read that spans more than two buckets
+is always near.
+.Sy 0
+or
+.Sy 1
+makes every read and write wait for the prefetch lock and be matched
+against every stream of the file.
+.
 .It Sy zfs_abd_scatter_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enables ARC from using scatter/gather lists and forces all allocations to be
 linear in kernel memory.

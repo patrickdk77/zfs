@@ -60,6 +60,12 @@ static unsigned int	zfetch_max_idistance = 128 * 1024 * 1024;
 static unsigned int	zfetch_max_reorder = 16 * 1024 * 1024;
 /* Max log2 fraction of holes in a stream */
 static unsigned int	zfetch_hole_shift = 2;
+/*
+ * Far reads try to create a stream only if they cover a blkid
+ * multiple of this, miss the cache, or the file has room for
+ * another stream.
+ */
+static unsigned int	zfetch_miss_sample = 16;
 
 typedef struct zfetch_stats {
 	kstat_named_t zfetchstat_hits;
@@ -70,6 +76,10 @@ typedef struct zfetch_stats {
 	kstat_named_t zfetchstat_max_streams;
 	kstat_named_t zfetchstat_io_issued;
 	kstat_named_t zfetchstat_io_active;
+	kstat_named_t zfetchstat_skipped;
+	kstat_named_t zfetchstat_sampled;
+	kstat_named_t zfetchstat_near;
+	kstat_named_t zfetchstat_busy;
 } zfetch_stats_t;
 
 static zfetch_stats_t zfetch_stats = {
@@ -81,6 +91,10 @@ static zfetch_stats_t zfetch_stats = {
 	{ "max_streams",		KSTAT_DATA_UINT64 },
 	{ "io_issued",			KSTAT_DATA_UINT64 },
 	{ "io_active",			KSTAT_DATA_UINT64 },
+	{ "skipped",			KSTAT_DATA_UINT64 },
+	{ "sampled",			KSTAT_DATA_UINT64 },
+	{ "near",			KSTAT_DATA_UINT64 },
+	{ "busy",			KSTAT_DATA_UINT64 },
 };
 
 struct {
@@ -92,6 +106,10 @@ struct {
 	wmsum_t zfetchstat_max_streams;
 	wmsum_t zfetchstat_io_issued;
 	aggsum_t zfetchstat_io_active;
+	wmsum_t zfetchstat_skipped;
+	wmsum_t zfetchstat_sampled;
+	wmsum_t zfetchstat_near;
+	wmsum_t zfetchstat_busy;
 } zfetch_sums;
 
 #define	ZFETCHSTAT_BUMP(stat)					\
@@ -125,6 +143,14 @@ zfetch_kstats_update(kstat_t *ksp, int rw)
 	    wmsum_value(&zfetch_sums.zfetchstat_io_issued);
 	zs->zfetchstat_io_active.value.ui64 =
 	    aggsum_value(&zfetch_sums.zfetchstat_io_active);
+	zs->zfetchstat_skipped.value.ui64 =
+	    wmsum_value(&zfetch_sums.zfetchstat_skipped);
+	zs->zfetchstat_sampled.value.ui64 =
+	    wmsum_value(&zfetch_sums.zfetchstat_sampled);
+	zs->zfetchstat_near.value.ui64 =
+	    wmsum_value(&zfetch_sums.zfetchstat_near);
+	zs->zfetchstat_busy.value.ui64 =
+	    wmsum_value(&zfetch_sums.zfetchstat_busy);
 	return (0);
 }
 
@@ -139,6 +165,10 @@ zfetch_init(void)
 	wmsum_init(&zfetch_sums.zfetchstat_max_streams, 0);
 	wmsum_init(&zfetch_sums.zfetchstat_io_issued, 0);
 	aggsum_init(&zfetch_sums.zfetchstat_io_active, 0);
+	wmsum_init(&zfetch_sums.zfetchstat_skipped, 0);
+	wmsum_init(&zfetch_sums.zfetchstat_sampled, 0);
+	wmsum_init(&zfetch_sums.zfetchstat_near, 0);
+	wmsum_init(&zfetch_sums.zfetchstat_busy, 0);
 
 	zfetch_ksp = kstat_create("zfs", 0, "zfetchstats", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (zfetch_stats) / sizeof (kstat_named_t),
@@ -168,6 +198,10 @@ zfetch_fini(void)
 	wmsum_fini(&zfetch_sums.zfetchstat_io_issued);
 	ASSERT0(aggsum_value(&zfetch_sums.zfetchstat_io_active));
 	aggsum_fini(&zfetch_sums.zfetchstat_io_active);
+	wmsum_fini(&zfetch_sums.zfetchstat_skipped);
+	wmsum_fini(&zfetch_sums.zfetchstat_sampled);
+	wmsum_fini(&zfetch_sums.zfetchstat_near);
+	wmsum_fini(&zfetch_sums.zfetchstat_busy);
 }
 
 /*
@@ -182,11 +216,114 @@ dmu_zfetch_init(zfetch_t *zf, dnode_t *dno)
 		return;
 	zf->zf_dnode = dno;
 	zf->zf_numstreams = 0;
+	zf->zf_map = 0;
 
 	list_create(&zf->zf_stream, sizeof (zstream_t),
 	    offsetof(zstream_t, zs_node));
 
 	mutex_init(&zf->zf_lock, NULL, MUTEX_DEFAULT, NULL);
+}
+
+/*
+ * zf_map lets dmu_zfetch_prepare() tell without zf_lock whether an
+ * access is near a stream.  Bucket b holds the blocks whose blkid
+ * shifted right by dmu_zfetch_map_shift() is b, and bit (b & 31)
+ * stands for it.  A bucket holds at least as many blocks as the
+ * reorder window reaches, so an access the stream search can match
+ * spans more than two buckets or ends in the bucket of the stream
+ * or a neighbor of it.  A stream that a hit or a stride has moved,
+ * or that was primed for a range (zs_hit), sets its bucket and both
+ * neighbors.  Any other stream sets only its own bucket, which
+ * holds its next sequential access, so an access in a neighbor
+ * bucket that the search would match to that stream looks far.  A
+ * future or past access, or a re-read of the block before the
+ * stream, does not widen a stream, so random reads that land near
+ * streams leave most bits clear.  Buckets 32 apart share a bit,
+ * which can only make an access look near.
+ */
+static uint_t
+dmu_zfetch_map_shift(unsigned int dbs)
+{
+	uint_t hb = highbit64(zfetch_max_reorder);
+
+	return (hb > dbs ? hb - dbs : 0);
+}
+
+static uint32_t
+dmu_zfetch_map_bits(zstream_t *zs, uint_t shift)
+{
+	uint64_t b = zs->zs_blkid >> shift;
+	uint32_t bits = 1U << (b & 31);
+
+	if (zs->zs_hit)
+		bits |= 1U << ((b - 1) & 31) | 1U << ((b + 1) & 31);
+	return (bits);
+}
+
+static void
+dmu_zfetch_map_update(zfetch_t *zf)
+{
+	uint_t shift =
+	    dmu_zfetch_map_shift(zf->zf_dnode->dn_datablkshift);
+	uint32_t map = 0;
+
+	ASSERT(MUTEX_HELD(&zf->zf_lock));
+	for (zstream_t *zs = list_head(&zf->zf_stream); zs != NULL;
+	    zs = list_next(&zf->zf_stream, zs))
+		map |= dmu_zfetch_map_bits(zs, shift);
+	if (zf->zf_map != map)
+		atomic_store_32(&zf->zf_map, map);
+}
+
+/*
+ * Look up in zf_map, without zf_lock, the buckets of the first and
+ * last block of an access of nblks blocks at blkid.  Returns B_TRUE
+ * when the access is far: it spans at most two buckets and neither
+ * bit is set.  An access that spans more than two buckets is never
+ * far, since the buckets between them are not looked up.
+ */
+static boolean_t
+dmu_zfetch_map_far(zfetch_t *zf, uint64_t blkid, uint64_t nblks,
+    uint_t shift)
+{
+	uint64_t b0 = blkid >> shift;
+	uint64_t b1 = (blkid + nblks - 1) >> shift;
+	uint32_t bits = 1U << (b0 & 31) | 1U << (b1 & 31);
+
+	ASSERT3U(nblks, >, 0);
+	return (b1 - b0 <= 1 &&
+	    (atomic_load_32(&zf->zf_map) & bits) == 0);
+}
+
+/*
+ * Tell whether a far access on [blkid, end_blkid) covers a block
+ * number divisible by zfetch_miss_sample, and so takes zf_lock to
+ * search the streams.
+ */
+static boolean_t
+dmu_zfetch_sampled(uint64_t blkid, uint64_t end_blkid)
+{
+	uint64_t n = zfetch_miss_sample;
+
+	if (n <= 1)
+		return (B_TRUE);
+	return (end_blkid > blkid &&
+	    (end_blkid - 1) / n * n >= blkid);
+}
+
+/*
+ * The maximum number of streams is normally zfetch_max_streams, but
+ * for small files we lower it such that it's at least possible for
+ * all the streams to be non-overlapping.
+ */
+static uint32_t
+dmu_zfetch_max_streams(zfetch_t *zf)
+{
+	dnode_t *dn = zf->zf_dnode;
+
+	return (MAX(1, MIN(zfetch_max_streams,
+	    (dn->dn_maxblkid << dn->dn_datablkshift) /
+	    zfetch_max_distance)));
 }
 
 static void
@@ -204,6 +341,7 @@ dmu_zfetch_stream_remove(zfetch_t *zf, zstream_t *zs)
 	ASSERT(MUTEX_HELD(&zf->zf_lock));
 	list_remove(&zf->zf_stream, zs);
 	zf->zf_numstreams--;
+	dmu_zfetch_map_update(zf);
 	membar_producer();
 	if (zfs_refcount_remove(&zs->zs_refs, NULL) == 0)
 		dmu_zfetch_stream_fini(zs);
@@ -266,15 +404,7 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 		goto reuse;
 	}
 
-	/*
-	 * The maximum number of streams is normally zfetch_max_streams,
-	 * but for small files we lower it such that it's at least possible
-	 * for all the streams to be non-overlapping.
-	 */
-	uint32_t max_streams = MAX(1, MIN(zfetch_max_streams,
-	    (zf->zf_dnode->dn_maxblkid << zf->zf_dnode->dn_datablkshift) /
-	    zfetch_max_distance));
-	if (zf->zf_numstreams >= max_streams) {
+	if (zf->zf_numstreams >= dmu_zfetch_max_streams(zf)) {
 		t = now - zfetch_min_sec_reap;
 		for (zs = list_head(&zf->zf_stream); zs != NULL;
 		    zs = list_next(&zf->zf_stream, zs)) {
@@ -316,6 +446,8 @@ reuse:
 	zs->zs_ipf_end = blkid;
 	zs->zs_missed = B_FALSE;
 	zs->zs_more = B_FALSE;
+	zs->zs_hit = B_FALSE;
+	dmu_zfetch_map_update(zf);
 	return (zs);
 }
 
@@ -498,6 +630,8 @@ dmu_zfetch_prime(zfetch_t *zf, uint64_t blkid, uint64_t end_blkid)
 	unsigned int nbytes = ((end_blkid - blkid) << dbs) / 2;
 	zs->zs_pf_dist = MIN(nbytes, zfetch_min_distance);
 	zs->zs_ipf_dist = MIN(nbytes, zfetch_max_idistance);
+	zs->zs_hit = (end_blkid > blkid);
+	dmu_zfetch_map_update(zf);
 
 	mutex_exit(&zf->zf_lock);
 	return (B_TRUE);
@@ -514,10 +648,16 @@ dmu_zfetch_prime(zfetch_t *zf, uint64_t blkid, uint64_t end_blkid)
  * fetch_data argument specifies whether actual data blocks should be fetched:
  *   FALSE -- prefetch only indirect blocks for predicted data blocks;
  *   TRUE -- prefetch predicted data blocks plus following indirect blocks.
+ * skipped, if not NULL, lets an access skip zf_lock when no stream is
+ * near it or when another thread holds zf_lock, and *skipped is set
+ * to B_TRUE if it does.  If the access then misses the cache, the
+ * caller passes it to dmu_zfetch() with missed set, which passes NULL
+ * here.  With skipped NULL, every access past the fast paths waits
+ * for zf_lock and searches every stream.
  */
 zstream_t *
 dmu_zfetch_prepare(zfetch_t *zf, uint64_t blkid, uint64_t nblks,
-    boolean_t fetch_data, boolean_t have_lock)
+    boolean_t fetch_data, boolean_t have_lock, boolean_t *skipped)
 {
 	zstream_t *zs;
 	spa_t *spa = zf->zf_dnode->dn_objset->os_spa;
@@ -561,15 +701,74 @@ dmu_zfetch_prepare(zfetch_t *zf, uint64_t blkid, uint64_t nblks,
 			rw_exit(&zf->zf_dnode->dn_struct_rwlock);
 		return (NULL);
 	}
-	mutex_enter(&zf->zf_lock);
+
+	/*
+	 * Look up the buckets of the first and last block of this
+	 * access in zf_map.  If the access spans at most two buckets
+	 * and neither is set, it is far from the streams.  A far
+	 * access that covers no block number divisible by
+	 * zfetch_miss_sample, in a file that has as many streams as
+	 * dmu_zfetch_stream_create() allows, is a miss that skips
+	 * zf_lock, if skipped is not NULL.  If it then misses the
+	 * cache, the caller passes it in again with skipped NULL.
+	 * Any other far access takes zf_lock, rebuilds zf_map, in
+	 * case a change of zfetch_max_reorder left it built for other
+	 * buckets, and searches every stream, since a stream that set
+	 * only its own bucket can still match it.  Random readers of
+	 * cached data take the lock less often once the file has all
+	 * its streams.  A sequential reader gets a stream at its
+	 * first read while the file has room for one, and otherwise
+	 * tries to at its first read that misses the cache or covers
+	 * such a block number.  Any other access, including one that
+	 * spans more than two buckets, is near.  An access of no
+	 * blocks, which a prime makes for the stream it has just set
+	 * up, and every access while zfetch_miss_sample is 0 or 1,
+	 * take zf_lock and search every stream.
+	 */
+	unsigned int dbs = zf->zf_dnode->dn_datablkshift;
+	uint64_t end_blkid = blkid + nblks;
+	uint_t shift = dmu_zfetch_map_shift(dbs);
+	if (nblks == 0 || zfetch_miss_sample <= 1) {
+		mutex_enter(&zf->zf_lock);
+	} else if (dmu_zfetch_map_far(zf, blkid, nblks, shift)) {
+		if (skipped != NULL &&
+		    !dmu_zfetch_sampled(blkid, end_blkid) &&
+		    zf->zf_numstreams >= dmu_zfetch_max_streams(zf)) {
+			*skipped = B_TRUE;
+			ZFETCHSTAT_BUMP(zfetchstat_skipped);
+			ZFETCHSTAT_BUMP(zfetchstat_misses);
+			zs = NULL;
+			ipf_start = 0;
+			goto prescient;
+		}
+		ZFETCHSTAT_BUMP(zfetchstat_sampled);
+		mutex_enter(&zf->zf_lock);
+		dmu_zfetch_map_update(zf);
+	} else {
+		ZFETCHSTAT_BUMP(zfetchstat_near);
+		/*
+		 * If skipped is not NULL and another thread holds
+		 * zf_lock, do not wait for it.  Skip the streams for
+		 * this access, set *skipped and only prefetch the
+		 * indirect blocks it needs, as a miss does.
+		 */
+		if (skipped == NULL) {
+			mutex_enter(&zf->zf_lock);
+		} else if (!mutex_tryenter(&zf->zf_lock)) {
+			*skipped = B_TRUE;
+			ZFETCHSTAT_BUMP(zfetchstat_busy);
+			ZFETCHSTAT_BUMP(zfetchstat_misses);
+			zs = NULL;
+			ipf_start = 0;
+			goto prescient;
+		}
+	}
 
 	/*
 	 * Find perfect prefetch stream.  Depending on whether the accesses
 	 * are block-aligned, first block of the new access may either follow
 	 * the last block of the previous access, or be equal to it.
 	 */
-	unsigned int dbs = zf->zf_dnode->dn_datablkshift;
-	uint64_t end_blkid = blkid + nblks;
 	for (zs = list_head(&zf->zf_stream); zs != NULL;
 	    zs = list_next(&zf->zf_stream, zs)) {
 		if (blkid == zs->zs_blkid) {
@@ -637,6 +836,14 @@ hit:
 
 future:
 	zs->zs_atime = gethrestime_sec();
+	/* Only a hit or stride that moved the stream widens it. */
+	if (nblks > 0)
+		zs->zs_hit = B_TRUE;
+
+	/* Update zf_map if it lacks a bucket of this stream. */
+	uint32_t bits = dmu_zfetch_map_bits(zs, shift);
+	if ((zf->zf_map & bits) != bits)
+		dmu_zfetch_map_update(zf);
 
 	/* Exit if we already prefetched for this position before. */
 	if (nblks == 0 && zs->zs_ipf_end > end_blkid)
@@ -816,8 +1023,10 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
     boolean_t missed, boolean_t have_lock, boolean_t uncached)
 {
 	zstream_t *zs;
+	boolean_t skipped = B_FALSE;
 
-	zs = dmu_zfetch_prepare(zf, blkid, nblks, fetch_data, have_lock);
+	zs = dmu_zfetch_prepare(zf, blkid, nblks, fetch_data,
+	    have_lock, missed ? NULL : &skipped);
 	if (zs)
 		dmu_zfetch_run(zf, zs, missed, have_lock, uncached);
 }
@@ -848,3 +1057,6 @@ ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, max_reorder, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, hole_shift, UINT, ZMOD_RW,
 	"Max log2 fraction of holes in a stream");
+
+ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, miss_sample, UINT, ZMOD_RW,
+	"Far reads create streams only at blkid multiples of this");
